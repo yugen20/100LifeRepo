@@ -273,7 +273,7 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         Text(
             text = "Last 5 Days  - Tap here",
             color = Color(0xFF1565C0),
-            fontSizse = 18.sp,
+            fontSize  = 18.sp,
             fontWeight = FontWeight.Bold,
             modifier = Modifier
                 .padding(top = 4.dp)
