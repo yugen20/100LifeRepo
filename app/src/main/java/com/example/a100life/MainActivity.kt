@@ -217,7 +217,66 @@ fun MonthButton(text: String, monthCode: String, onClick: (String) -> Unit) {
 }
 
 // ─────────────────────────────────────────────
-// READING TYPE SELECTOR (NEW)
+// GLUCOSE UNIT SELECTOR (NEW - ver5.0)
+// Friendly big buttons instead of technical toggle
+// ─────────────────────────────────────────────
+
+@Composable
+fun GlucoseUnitSelector(
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            "What does your glucometer show?",
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 6.dp)
+        )
+        Text(
+            "Look at your device and pick the one that matches:",
+            fontSize = 13.sp,
+            color = Color.Gray,
+            modifier = Modifier.padding(bottom = 12.dp)
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            listOf(
+                "mmol/L" to "Small numbers\n(like 4.5 – 10.0)",
+                "mg/dL"  to "Big numbers\n(like 80 – 200)"
+            ).forEach { (unit, desc) ->
+                val isSelected = selected == unit
+                OutlinedButton(
+                    onClick = { onSelect(unit) },
+                    modifier = Modifier.weight(1f).height(80.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isSelected) Color(0xFF2196F3) else Color.White,
+                        contentColor   = if (isSelected) Color.White else Color(0xFF2196F3)
+                    ),
+                    border = BorderStroke(
+                        width = if (isSelected) 2.dp else 1.dp,
+                        color = Color(0xFF2196F3)
+                    )
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(unit, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            desc,
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 16.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────
+// READING TYPE SELECTOR
 // Big tap buttons — Fasting / After Meal / Random
 // ─────────────────────────────────────────────
 
@@ -231,7 +290,6 @@ fun ReadingTypeSelector(
         "After Meal" to "🍽️",
         "Random"     to "🎲"
     )
-
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             "Reading Type",
@@ -247,9 +305,7 @@ fun ReadingTypeSelector(
                 val isSelected = selected == label
                 OutlinedButton(
                     onClick = { onSelect(label) },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(64.dp),
+                    modifier = Modifier.weight(1f).height(64.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (isSelected) Color(0xFF2196F3) else Color.White,
                         contentColor   = if (isSelected) Color.White else Color(0xFF2196F3)
@@ -285,6 +341,7 @@ fun generateCSV(
     year: Int,
     patientName: String,
     patientIC: String,
+    glucoseUnit: String,
     avgSugar: Double,
     highestEntry: Entry?,
     lowestEntry: Entry?,
@@ -293,32 +350,29 @@ fun generateCSV(
     return try {
         val safePatientName = patientName.replace(" ", "_")
         val fileName = "100Life_${safePatientName}_${patientIC}_${monthName}${year}.csv"
-
         val csvDir = File(context.cacheDir, "csv_exports")
         if (!csvDir.exists()) csvDir.mkdirs()
         val csvFile = File(csvDir, fileName)
         val writer = FileWriter(csvFile)
 
-        // Header info
         writer.append("100Life Health Report\n")
         writer.append("Patient Name,${patientName}\n")
         writer.append("IC Number,${patientIC}\n")
         writer.append("Month,${monthName} ${year}\n")
+        writer.append("Glucose Unit,${glucoseUnit}\n")
         writer.append("Generated,${java.time.LocalDate.now()}\n")
         writer.append("\n")
 
-        // Summary
         writer.append("MONTHLY SUMMARY\n")
         writer.append("Total Entries,${entries.size}\n")
-        writer.append("Average Sugar,${String.format("%.1f", avgSugar)} mg/dL\n")
-        writer.append("Highest Sugar,${highestEntry?.sugar ?: "-"} mg/dL,${highestEntry?.date ?: ""}\n")
-        writer.append("Lowest Sugar,${lowestEntry?.sugar ?: "-"} mg/dL,${lowestEntry?.date ?: ""}\n")
+        writer.append("Average Sugar,${String.format("%.1f", avgSugar)} ${glucoseUnit}\n")
+        writer.append("Highest Sugar,${highestEntry?.sugar ?: "-"} ${glucoseUnit},${highestEntry?.date ?: ""}\n")
+        writer.append("Lowest Sugar,${lowestEntry?.sugar ?: "-"} ${glucoseUnit},${lowestEntry?.date ?: ""}\n")
         writer.append("Average Daily Steps,${avgSteps} steps\n")
         writer.append("\n")
 
-        // Full data
         writer.append("FULL DATA\n")
-        writer.append("Date,Reading Type,Sugar (mg/dL),Steps,Notes\n")
+        writer.append("Date,Reading Type,Sugar (${glucoseUnit}),Steps,Notes\n")
         entries.forEach { entry ->
             val safeNotes = entry.notes.replace(",", ";")
             writer.append("${entry.date},${entry.readingType},${entry.sugar},${entry.steps},${safeNotes}\n")
@@ -327,11 +381,7 @@ fun generateCSV(
         writer.flush()
         writer.close()
 
-        FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.provider",
-            csvFile
-        )
+        FileProvider.getUriForFile(context, "${context.packageName}.provider", csvFile)
     } catch (e: Exception) {
         e.printStackTrace()
         null
@@ -351,6 +401,7 @@ fun sendEmailWithCSV(
     patientIC: String,
     monthName: String,
     year: Int,
+    glucoseUnit: String,
     totalEntries: Int,
     avgSugar: Double,
     highestEntry: Entry?,
@@ -358,7 +409,6 @@ fun sendEmailWithCSV(
     avgSteps: Int
 ) {
     val subject = "[100Life] $patientName | IC: $patientIC | Sugar Report - $monthName $year"
-
     val body = """Dear $doctorName,
 
 Please find attached the monthly sugar and steps report for your patient:
@@ -366,10 +416,11 @@ Please find attached the monthly sugar and steps report for your patient:
 Patient Name  : $patientName
 IC Number     : $patientIC
 Month         : $monthName $year
+Glucose Unit  : $glucoseUnit
 Total Entries : $totalEntries readings
-Average Sugar : ${String.format("%.1f", avgSugar)} mg/dL
-Highest Sugar : ${highestEntry?.sugar ?: "-"} mg/dL (${highestEntry?.date ?: "-"})
-Lowest Sugar  : ${lowestEntry?.sugar ?: "-"} mg/dL (${lowestEntry?.date ?: "-"})
+Average Sugar : ${String.format("%.1f", avgSugar)} $glucoseUnit
+Highest Sugar : ${highestEntry?.sugar ?: "-"} $glucoseUnit (${highestEntry?.date ?: "-"})
+Lowest Sugar  : ${lowestEntry?.sugar ?: "-"} $glucoseUnit (${lowestEntry?.date ?: "-"})
 Avg Steps/Day : $avgSteps steps
 
 Full data is attached as a CSV file which can be opened in Microsoft Excel or Google Sheets.
@@ -409,15 +460,14 @@ fun MonthlySummaryScreen(
     val currentContext = LocalContext.current
     val currentYear = java.time.LocalDate.now().year
 
-    var allEntries   by remember(monthCode) { mutableStateOf(dbHelper.getEntries(monthCode, currentYear)) }
-    var showAll      by remember { mutableStateOf(false) }
-    var showSendConfirm  by remember { mutableStateOf(false) }
-    var showEmailError   by remember { mutableStateOf(false) }
-    var emailErrorMsg    by remember { mutableStateOf("") }
+    var allEntries      by remember(monthCode) { mutableStateOf(dbHelper.getEntries(monthCode, currentYear)) }
+    var showAll         by remember { mutableStateOf(false) }
+    var showSendConfirm by remember { mutableStateOf(false) }
+    var showEmailError  by remember { mutableStateOf(false) }
+    var emailErrorMsg   by remember { mutableStateOf("") }
 
     val monthName = monthCodeToName(monthCode)
 
-    // Stats
     val totalEntries = allEntries.size
     val avgSugar     = if (totalEntries > 0) allEntries.sumOf { it.sugar } / totalEntries else 0.0
     val highestEntry = allEntries.maxByOrNull { it.sugar }
@@ -426,11 +476,11 @@ fun MonthlySummaryScreen(
 
     val displayedEntries = if (showAll) allEntries else allEntries.take(10)
 
-    // Settings
-    val doctorName  = prefs.getString("doctor_name",  "") ?: ""
-    val doctorEmail = prefs.getString("doctor_email", "") ?: ""
-    val patientName = prefs.getString("patient_name", "") ?: ""
-    val patientIC   = prefs.getString("patient_ic",   "") ?: ""
+    val doctorName   = prefs.getString("doctor_name",   "") ?: ""
+    val doctorEmail  = prefs.getString("doctor_email",  "") ?: ""
+    val patientName  = prefs.getString("patient_name",  "") ?: ""
+    val patientIC    = prefs.getString("patient_ic",    "") ?: ""
+    val glucoseUnit  = prefs.getString("glucose_unit",  "mmol/L") ?: "mmol/L"
     val isSettingsComplete = doctorEmail.isNotEmpty() &&
             patientName.isNotEmpty() &&
             patientIC.isNotEmpty()
@@ -477,17 +527,16 @@ fun MonthlySummaryScreen(
                         color = Color(0xFF1565C0)
                     )
                     Divider(color = Color(0xFF90CAF9))
-                    SummaryRow("Total entries",    "$totalEntries readings")
-                    SummaryRow("Average sugar",    if (totalEntries > 0) "${String.format("%.1f", avgSugar)} mg/dL" else "No data")
-                    SummaryRow("Highest sugar",    if (highestEntry != null) "${highestEntry.sugar} mg/dL  (${highestEntry.date})" else "No data")
-                    SummaryRow("Lowest sugar",     if (lowestEntry  != null) "${lowestEntry.sugar} mg/dL  (${lowestEntry.date})"  else "No data")
-                    SummaryRow("Avg daily steps",  if (totalEntries > 0) "$avgSteps steps" else "No data")
+                    SummaryRow("Total entries",   "$totalEntries readings")
+                    SummaryRow("Average sugar",   if (totalEntries > 0) "${String.format("%.1f", avgSugar)} $glucoseUnit" else "No data")
+                    SummaryRow("Highest sugar",   if (highestEntry != null) "${highestEntry.sugar} $glucoseUnit  (${highestEntry.date})" else "No data")
+                    SummaryRow("Lowest sugar",    if (lowestEntry  != null) "${lowestEntry.sugar} $glucoseUnit  (${lowestEntry.date})"  else "No data")
+                    SummaryRow("Avg daily steps", if (totalEntries > 0) "$avgSteps steps" else "No data")
                 }
             }
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // Add Entry Button
             Button(
                 onClick = onAddEntry,
                 modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -496,7 +545,6 @@ fun MonthlySummaryScreen(
                 Text("+ Add New Entry", fontSize = 18.sp, fontWeight = FontWeight.Bold)
             }
 
-            // Send Report Button
             Button(
                 onClick = {
                     if (!isSettingsComplete) {
@@ -542,7 +590,6 @@ fun MonthlySummaryScreen(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
-
                     if (totalEntries == 0) {
                         Text(
                             "No entries yet for $monthName $currentYear.\nTap '+ Add New Entry' to get started.",
@@ -551,7 +598,6 @@ fun MonthlySummaryScreen(
                             lineHeight = 24.sp
                         )
                     } else {
-                        // Table header
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text("Date",  modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Text("Type",  modifier = Modifier.weight(1f),   fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -559,16 +605,15 @@ fun MonthlySummaryScreen(
                             Text("Steps", modifier = Modifier.weight(0.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                         Divider(modifier = Modifier.padding(vertical = 6.dp))
-
                         displayedEntries.forEach { entry ->
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(entry.date,              modifier = Modifier.weight(1.3f), fontSize = 12.sp)
-                                Text(entry.readingType,       modifier = Modifier.weight(1f),   fontSize = 12.sp)
-                                Text("${entry.sugar}",        modifier = Modifier.weight(0.9f), fontSize = 12.sp)
-                                Text("${entry.steps}",        modifier = Modifier.weight(0.9f), fontSize = 12.sp)
+                                Text(entry.date,        modifier = Modifier.weight(1.3f), fontSize = 12.sp)
+                                Text(entry.readingType, modifier = Modifier.weight(1f),   fontSize = 12.sp)
+                                Text("${entry.sugar}",  modifier = Modifier.weight(0.9f), fontSize = 12.sp)
+                                Text("${entry.steps}",  modifier = Modifier.weight(0.9f), fontSize = 12.sp)
                             }
                             if (entry.notes.isNotEmpty()) {
                                 Text(
@@ -580,7 +625,6 @@ fun MonthlySummaryScreen(
                             }
                             Divider(color = Color.LightGray, thickness = 0.5.dp)
                         }
-
                         if (totalEntries > 10) {
                             Spacer(modifier = Modifier.height(10.dp))
                             Text(
@@ -598,7 +642,6 @@ fun MonthlySummaryScreen(
         }
     }
 
-    // Send Confirmation Dialog
     if (showSendConfirm) {
         AlertDialog(
             onDismissRequest = { showSendConfirm = false },
@@ -628,6 +671,7 @@ fun MonthlySummaryScreen(
                             year         = currentYear,
                             patientName  = patientName,
                             patientIC    = patientIC,
+                            glucoseUnit  = glucoseUnit,
                             avgSugar     = avgSugar,
                             highestEntry = highestEntry,
                             lowestEntry  = lowestEntry,
@@ -643,6 +687,7 @@ fun MonthlySummaryScreen(
                                 patientIC    = patientIC,
                                 monthName    = monthName,
                                 year         = currentYear,
+                                glucoseUnit  = glucoseUnit,
                                 totalEntries = totalEntries,
                                 avgSugar     = avgSugar,
                                 highestEntry = highestEntry,
@@ -665,7 +710,6 @@ fun MonthlySummaryScreen(
         )
     }
 
-    // Error Dialog
     if (showEmailError) {
         AlertDialog(
             onDismissRequest = { showEmailError = false },
@@ -681,7 +725,6 @@ fun MonthlySummaryScreen(
     }
 }
 
-// Summary row helper
 @Composable
 fun SummaryRow(label: String, value: String) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -693,6 +736,7 @@ fun SummaryRow(label: String, value: String) {
 
 // ─────────────────────────────────────────────
 // SETTINGS SCREEN
+// ver5.0 — Added glucose unit selector
 // ─────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -700,10 +744,11 @@ fun SummaryRow(label: String, value: String) {
 fun SettingsScreen(context: Context, onBack: () -> Unit) {
     val prefs: SharedPreferences = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
 
-    var patientName by remember { mutableStateOf(prefs.getString("patient_name", "") ?: "") }
-    var patientIC   by remember { mutableStateOf(prefs.getString("patient_ic",   "") ?: "") }
-    var doctorName  by remember { mutableStateOf(prefs.getString("doctor_name",  "") ?: "") }
-    var doctorEmail by remember { mutableStateOf(prefs.getString("doctor_email", "") ?: "") }
+    var patientName  by remember { mutableStateOf(prefs.getString("patient_name",  "") ?: "") }
+    var patientIC    by remember { mutableStateOf(prefs.getString("patient_ic",    "") ?: "") }
+    var doctorName   by remember { mutableStateOf(prefs.getString("doctor_name",   "") ?: "") }
+    var doctorEmail  by remember { mutableStateOf(prefs.getString("doctor_email",  "") ?: "") }
+    var glucoseUnit  by remember { mutableStateOf(prefs.getString("glucose_unit",  "mmol/L") ?: "mmol/L") }
 
     var nameError   by remember { mutableStateOf("") }
     var icError     by remember { mutableStateOf("") }
@@ -713,13 +758,17 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var showSavedDialog   by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
-    val originalName   = remember { prefs.getString("patient_name", "") ?: "" }
-    val originalIC     = remember { prefs.getString("patient_ic",   "") ?: "" }
-    val originalDrName = remember { prefs.getString("doctor_name",  "") ?: "" }
-    val originalEmail  = remember { prefs.getString("doctor_email", "") ?: "" }
+    val originalName    = remember { prefs.getString("patient_name",  "") ?: "" }
+    val originalIC      = remember { prefs.getString("patient_ic",    "") ?: "" }
+    val originalDrName  = remember { prefs.getString("doctor_name",   "") ?: "" }
+    val originalEmail   = remember { prefs.getString("doctor_email",  "") ?: "" }
+    val originalUnit    = remember { prefs.getString("glucose_unit",  "mmol/L") ?: "mmol/L" }
 
-    val hasChanges = patientName != originalName  || patientIC != originalIC ||
-            doctorName  != originalDrName || doctorEmail != originalEmail
+    val hasChanges = patientName != originalName   ||
+            patientIC   != originalIC     ||
+            doctorName  != originalDrName ||
+            doctorEmail != originalEmail  ||
+            glucoseUnit != originalUnit
 
     Scaffold(
         topBar = {
@@ -743,8 +792,14 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text("👤 Patient Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                color = Color(0xFF2196F3), modifier = Modifier.padding(top = 8.dp))
+            // ── Patient Info ──
+            Text(
+                "👤 Patient Information",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3),
+                modifier = Modifier.padding(top = 8.dp)
+            )
 
             OutlinedTextField(
                 value = patientName,
@@ -781,8 +836,14 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
             )
 
             Spacer(modifier = Modifier.height(4.dp))
-            Text("🩺 Doctor Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
-                color = Color(0xFF2196F3))
+
+            // ── Doctor Info ──
+            Text(
+                "🩺 Doctor Information",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3)
+            )
 
             OutlinedTextField(
                 value = doctorName,
@@ -814,8 +875,24 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
+            // ── Glucose Unit Selector (NEW) ──
+            Text(
+                "⚗️ Glucometer Reading Unit",
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3)
+            )
+
+            GlucoseUnitSelector(
+                selected = glucoseUnit,
+                onSelect = { glucoseUnit = it }
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Info Card ──
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))
@@ -835,6 +912,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ── Save Button ──
             Button(
                 onClick = {
                     var valid = true
@@ -849,6 +927,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                             putString("patient_ic",   patientIC.trim())
                             putString("doctor_name",  doctorName.trim())
                             putString("doctor_email", doctorEmail.trim())
+                            putString("glucose_unit", glucoseUnit)
                             apply()
                         }
                         showSavedDialog = true
@@ -870,8 +949,13 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
             title = { Text("✅ Settings Saved!", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text(
-                    "Name: $patientName\nIC: $patientIC\nDoctor: $doctorName\nEmail: $doctorEmail",
-                    fontSize = 16.sp, lineHeight = 26.sp
+                    "Name: $patientName\n" +
+                            "IC: $patientIC\n" +
+                            "Doctor: $doctorName\n" +
+                            "Email: $doctorEmail\n" +
+                            "Unit: $glucoseUnit",
+                    fontSize = 16.sp,
+                    lineHeight = 26.sp
                 )
             },
             confirmButton = {
@@ -905,7 +989,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
 // ─────────────────────────────────────────────
 // DATA ENTRY SCREEN
-// NEW: Reading type selector + Notes field + Year auto-capture
+// ver5.0 — Unit-aware validation + hints
 // ─────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -915,6 +999,10 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
     }
     val currentYear = remember { java.time.LocalDate.now().year }
+
+    // Load glucose unit from settings
+    val prefs = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
 
     var selectedDateMillis by remember(monthCode) { mutableStateOf(System.currentTimeMillis()) }
     var displayDate   by remember(monthCode) { mutableStateOf(today) }
@@ -931,15 +1019,19 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
     var sugarError by remember(monthCode) { mutableStateOf("") }
     var stepsError by remember(monthCode) { mutableStateOf("") }
 
-    var savedDate  by remember(monthCode) { mutableStateOf("") }
-    var savedSugar by remember(monthCode) { mutableStateOf("") }
-    var savedSteps by remember(monthCode) { mutableStateOf("") }
+    var savedDate    by remember(monthCode) { mutableStateOf("") }
+    var savedSugar   by remember(monthCode) { mutableStateOf("") }
+    var savedSteps   by remember(monthCode) { mutableStateOf("") }
     var averageSugar by remember(monthCode) { mutableStateOf(0.0) }
     var last5Entries by remember(monthCode) { mutableStateOf(listOf<Entry>()) }
 
     val dbHelper = remember { DatabaseHelper(context) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
     val monthName = monthCodeToName(monthCode)
+
+    // Unit-aware hints
+    val sugarHint = if (glucoseUnit == "mmol/L") "e.g. 6.5" else "e.g. 120"
+    val sugarRange = if (glucoseUnit == "mmol/L") "Normal fasting: 4.0 – 6.0 mmol/L" else "Normal fasting: 72 – 108 mg/dL"
 
     Column(
         modifier = Modifier
@@ -953,7 +1045,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         Text("$monthName $currentYear", fontSize = 16.sp, color = Color.Gray)
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Date picker card
         Card(
             modifier = Modifier.fillMaxWidth().height(80.dp),
             onClick = { showDatePicker = true }
@@ -972,29 +1063,24 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             }
         }
 
-        // Sugar Reading Type — big tap buttons
-        ReadingTypeSelector(
-            selected = readingType,
-            onSelect = { readingType = it }
-        )
+        ReadingTypeSelector(selected = readingType, onSelect = { readingType = it })
 
-        // Sugar input
+        // Sugar input — unit aware
         OutlinedTextField(
             value = sugarInput,
             onValueChange = { sugarInput = it; sugarError = "" },
-            label = { Text("Sugar Reading (mg/dL)") },
-            placeholder = { Text("e.g. 120") },
+            label = { Text("Sugar Reading ($glucoseUnit)") },
+            placeholder = { Text(sugarHint) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             isError = sugarError.isNotEmpty(),
             supportingText = {
                 if (sugarError.isNotEmpty()) Text(sugarError, color = MaterialTheme.colorScheme.error)
-                else Text("Normal range: 70–140 mg/dL", color = Color.Gray, fontSize = 12.sp)
+                else Text(sugarRange, color = Color.Gray, fontSize = 12.sp)
             },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
 
-        // Steps input
         OutlinedTextField(
             value = stepsInput,
             onValueChange = { stepsInput = it; stepsError = "" },
@@ -1010,12 +1096,9 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
         )
 
-        // Notes input — optional
         OutlinedTextField(
             value = notesInput,
-            onValueChange = {
-                if (it.length <= 100) notesInput = it
-            },
+            onValueChange = { if (it.length <= 100) notesInput = it },
             label = { Text("Notes (optional)") },
             placeholder = { Text("e.g. Ate nasi lemak today") },
             modifier = Modifier.fillMaxWidth(),
@@ -1028,7 +1111,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Back + Save buttons
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -1043,17 +1125,28 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                 onClick = {
                     var valid = true
                     val sugar = sugarInput.trim().toDoubleOrNull()
+
+                    // Unit-aware validation
                     if (sugar == null) {
-                        sugarError = "Please enter a number"; valid = false
-                    } else if (sugar < 1.0 || sugar > 600.0) {
-                        sugarError = "Must be between 1 and 600 mg/dL"; valid = false
+                        sugarError = "Please enter a number"
+                        valid = false
+                    } else if (glucoseUnit == "mmol/L" && (sugar < 1.0 || sugar > 33.0)) {
+                        sugarError = "Must be between 1.0 and 33.0 mmol/L"
+                        valid = false
+                    } else if (glucoseUnit == "mg/dL" && (sugar < 18.0 || sugar > 600.0)) {
+                        sugarError = "Must be between 18 and 600 mg/dL"
+                        valid = false
                     }
+
                     val steps = stepsInput.trim().toIntOrNull()
                     if (steps == null) {
-                        stepsError = "Please enter a whole number"; valid = false
+                        stepsError = "Please enter a whole number"
+                        valid = false
                     } else if (steps < 0 || steps > 100000) {
-                        stepsError = "Must be between 0 and 100,000"; valid = false
+                        stepsError = "Must be between 0 and 100,000"
+                        valid = false
                     }
+
                     if (valid && sugar != null && steps != null) {
                         dbHelper.insertEntry(
                             month       = monthCode,
@@ -1070,9 +1163,9 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                         savedDate  = displayDate
                         savedSugar = sugarInput
                         savedSteps = stepsInput
-                        sugarInput  = ""
-                        stepsInput  = ""
-                        notesInput  = ""
+                        sugarInput = ""
+                        stepsInput = ""
+                        notesInput = ""
                         showSaveDialog = true
                     }
                 },
@@ -1081,7 +1174,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             ) { Text("Save", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
         }
 
-        // Last 5 entries toggle
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = if (showLast5) "Hide entries ▲" else "Last 5 Days — Tap to view ▼",
@@ -1154,7 +1246,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         Spacer(modifier = Modifier.height(32.dp))
     }
 
-    // Date Picker Dialog
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -1178,7 +1269,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         ) { DatePicker(state = datePickerState) }
     }
 
-    // Save Success Dialog
     if (showSaveDialog) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
@@ -1187,9 +1277,9 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                 Text(
                     "Date: $savedDate\n" +
                             "Type: $readingType\n" +
-                            "Sugar: $savedSugar mg/dL\n" +
+                            "Sugar: $savedSugar $glucoseUnit\n" +
                             "Steps: $savedSteps\n\n" +
-                            "Monthly average: ${String.format("%.1f", averageSugar)} mg/dL",
+                            "Monthly average: ${String.format("%.1f", averageSugar)} $glucoseUnit",
                     fontSize = 18.sp,
                     lineHeight = 28.sp
                 )
@@ -1203,7 +1293,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         )
     }
 
-    // Delete Confirmation Dialog
     showDeleteConfirm?.let { entryToDelete ->
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
@@ -1213,7 +1302,7 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                     "Are you sure?\n\n" +
                             "Date: ${entryToDelete.date}\n" +
                             "Type: ${entryToDelete.readingType}\n" +
-                            "Sugar: ${entryToDelete.sugar} mg/dL\n" +
+                            "Sugar: ${entryToDelete.sugar} $glucoseUnit\n" +
                             "Steps: ${entryToDelete.steps}",
                     fontSize = 16.sp,
                     lineHeight = 26.sp
@@ -1239,8 +1328,7 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
 }
 
 // ─────────────────────────────────────────────
-// DATABASE HELPER
-// VERSION 3 — Added year, reading_type, notes
+// DATABASE HELPER — version 3
 // ─────────────────────────────────────────────
 
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", null, 3) {
@@ -1261,19 +1349,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", 
     }
 
     override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-        // Clean upgrade — drop and recreate
         db?.execSQL("DROP TABLE IF EXISTS entries")
         onCreate(db)
     }
 
     fun insertEntry(
-        month: String,
-        date: String,
-        sugar: Double,
-        steps: Int,
-        readingType: String,
-        notes: String,
-        year: Int
+        month: String, date: String, sugar: Double,
+        steps: Int, readingType: String, notes: String, year: Int
     ) {
         val db = writableDatabase
         val values = ContentValues().apply {
@@ -1302,9 +1384,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", 
             "SELECT * FROM entries WHERE month = ? AND year = ? ORDER BY date DESC",
             arrayOf(month, year.toString())
         )
-        while (cursor.moveToNext()) {
-            entries.add(cursorToEntry(cursor, month))
-        }
+        while (cursor.moveToNext()) { entries.add(cursorToEntry(cursor, month)) }
         cursor.close()
         db.close()
         return entries
@@ -1317,9 +1397,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", 
             "SELECT * FROM entries WHERE month = ? AND year = ? ORDER BY date DESC LIMIT 5",
             arrayOf(month, year.toString())
         )
-        while (cursor.moveToNext()) {
-            entries.add(cursorToEntry(cursor, month))
-        }
+        while (cursor.moveToNext()) { entries.add(cursorToEntry(cursor, month)) }
         cursor.close()
         db.close()
         return entries
@@ -1340,7 +1418,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", 
 }
 
 // ─────────────────────────────────────────────
-// DATA MODEL — Updated with new fields
+// DATA MODEL
 // ─────────────────────────────────────────────
 
 data class Entry(
@@ -1355,7 +1433,7 @@ data class Entry(
 )
 
 // ─────────────────────────────────────────────
-// HELPER FUNCTION — Month code to name
+// HELPER — Month code to name
 // ─────────────────────────────────────────────
 
 fun monthCodeToName(code: String): String {
