@@ -129,7 +129,8 @@ fun MonthSelectorScreen(onMonthSelected: (String) -> Unit, onSettingsClick: () -
                 title = { Text("100Life Tracker — $currentYear", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
                 actions = {
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, "Settings", tint = Color(0xFF2196F3), modifier = Modifier.size(28.dp))
+                        Icon(Icons.Default.Settings, "Settings",
+                            tint = Color(0xFF2196F3), modifier = Modifier.size(28.dp))
                     }
                 }
             )
@@ -141,8 +142,10 @@ fun MonthSelectorScreen(onMonthSelected: (String) -> Unit, onSettingsClick: () -
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text("Select a month to record or view entries:", fontSize = 18.sp,
-                textAlign = TextAlign.Center, modifier = Modifier.padding(bottom = 20.dp, top = 8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(bottom = 20.dp, top = 8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()) {
                 months.forEach { (name, code) -> MonthButton(name, code) { onMonthSelected(it) } }
             }
             Spacer(modifier = Modifier.height(32.dp))
@@ -152,7 +155,8 @@ fun MonthSelectorScreen(onMonthSelected: (String) -> Unit, onSettingsClick: () -
 
 @Composable
 fun MonthButton(text: String, monthCode: String, onClick: (String) -> Unit) {
-    Button(onClick = { onClick(monthCode) }, modifier = Modifier.fillMaxWidth().height(60.dp),
+    Button(onClick = { onClick(monthCode) },
+        modifier = Modifier.fillMaxWidth().height(60.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))) {
         Text(text = text, fontSize = 20.sp, fontWeight = FontWeight.Medium)
     }
@@ -166,24 +170,26 @@ fun GlucoseUnitSelector(selected: String, onSelect: (String) -> Unit) {
         Text("Look at your device and pick the one that matches:",
             fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 12.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            listOf("mmol/L" to "Small numbers\n(like 4.5 – 10.0)", "mg/dL" to "Big numbers\n(like 80 – 200)")
-                .forEach { (unit, desc) ->
-                    val isSelected = selected == unit
-                    OutlinedButton(
-                        onClick = { onSelect(unit) },
-                        modifier = Modifier.weight(1f).height(80.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            containerColor = if (isSelected) Color(0xFF2196F3) else Color.White,
-                            contentColor = if (isSelected) Color.White else Color(0xFF2196F3)
-                        ),
-                        border = BorderStroke(if (isSelected) 2.dp else 1.dp, Color(0xFF2196F3))
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(unit, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                            Text(desc, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 16.sp)
-                        }
+            listOf(
+                "mmol/L" to "Small numbers\n(like 4.5 – 10.0)",
+                "mg/dL"  to "Big numbers\n(like 80 – 200)"
+            ).forEach { (unit, desc) ->
+                val isSelected = selected == unit
+                OutlinedButton(
+                    onClick = { onSelect(unit) },
+                    modifier = Modifier.weight(1f).height(80.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = if (isSelected) Color(0xFF2196F3) else Color.White,
+                        contentColor   = if (isSelected) Color.White else Color(0xFF2196F3)
+                    ),
+                    border = BorderStroke(if (isSelected) 2.dp else 1.dp, Color(0xFF2196F3))
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(unit, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(desc, fontSize = 11.sp, textAlign = TextAlign.Center, lineHeight = 16.sp)
                     }
                 }
+            }
         }
     }
 }
@@ -192,7 +198,8 @@ fun GlucoseUnitSelector(selected: String, onSelect: (String) -> Unit) {
 fun ReadingTypeSelector(selected: String, onSelect: (String) -> Unit) {
     val options = listOf("Fasting" to "🌅", "After Meal" to "🍽️", "Random" to "🎲")
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text("Reading Type", fontSize = 16.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+        Text("Reading Type", fontSize = 16.sp, color = Color.Gray,
+            modifier = Modifier.padding(bottom = 8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             options.forEach { (label, emoji) ->
                 val isSelected = selected == label
@@ -201,7 +208,7 @@ fun ReadingTypeSelector(selected: String, onSelect: (String) -> Unit) {
                     modifier = Modifier.weight(1f).height(64.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         containerColor = if (isSelected) Color(0xFF2196F3) else Color.White,
-                        contentColor = if (isSelected) Color.White else Color(0xFF2196F3)
+                        contentColor   = if (isSelected) Color.White else Color(0xFF2196F3)
                     ),
                     border = BorderStroke(if (isSelected) 2.dp else 1.dp, Color(0xFF2196F3))
                 ) {
@@ -222,73 +229,94 @@ fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
     val totalEntries   = allYearEntries.size
     val distinctMonths = allYearEntries.map { it.month }.distinct().size
     val hasEnoughData  = totalEntries >= 14 && distinctMonths >= 2
+    var isExpanded by remember { mutableStateOf(false) }
 
     Card(modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5))) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text("🔬 HbA1c Prediction", fontSize = 18.sp,
-                fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A))
-            Divider(color = Color(0xFFCE93D8))
+        Column(modifier = Modifier.padding(16.dp)) {
 
-            if (!hasEnoughData) {
-                Card(modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("📊 Not enough data yet", fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
-                        Text(
-                            "To generate an HbA1c prediction, please record:\n\n" +
-                                    "• At least 14 readings  (current: $totalEntries)\n" +
-                                    "• Across at least 2 months  (current: $distinctMonths)\n\n" +
-                                    "Keep recording daily — prediction will appear automatically once you have enough data!",
-                            fontSize = 13.sp, color = Color(0xFF5D4037), lineHeight = 20.sp)
-                    }
-                }
-            } else {
-                val avgSugarMmol = allYearEntries.sumOf { it.sugar } / totalEntries
-                val avgSugarMgDl = if (glucoseUnit == "mmol/L") avgSugarMmol * 18.0 else avgSugarMmol
-                val estimatedHbA1c = (avgSugarMgDl + 46.7) / 28.7
-                val avgDisplay = if (glucoseUnit == "mmol/L")
-                    "${String.format("%.1f", avgSugarMmol)} mmol/L"
-                else "${String.format("%.0f", avgSugarMgDl)} mg/dL"
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { isExpanded = !isExpanded },
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("🔬 HbA1c Prediction", fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A))
+                Text(if (isExpanded) "▲ Hide" else "▼ View",
+                    fontSize = 14.sp, color = Color(0xFF6A1B9A), fontWeight = FontWeight.Bold)
+            }
 
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column {
-                        Text("Readings used", fontSize = 12.sp, color = Color(0xFF7B1FA2))
-                        Text("$totalEntries entries across $distinctMonths months",
-                            fontSize = 14.sp, fontWeight = FontWeight.Bold)
+            if (isExpanded) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Divider(color = Color(0xFFCE93D8))
+                Spacer(modifier = Modifier.height(10.dp))
+
+                if (!hasEnoughData) {
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))) {
+                        Column(modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("📊 Not enough data yet", fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold, color = Color(0xFFE65100))
+                            Text(
+                                "To generate an HbA1c prediction, please record:\n\n" +
+                                        "• At least 14 readings  (current: $totalEntries)\n" +
+                                        "• Across at least 2 months  (current: $distinctMonths)\n\n" +
+                                        "Keep recording daily — prediction will appear automatically!",
+                                fontSize = 13.sp, color = Color(0xFF5D4037), lineHeight = 20.sp)
+                        }
                     }
+                } else {
+                    val avgSugarMmol   = allYearEntries.sumOf { it.sugar } / totalEntries
+                    val avgSugarMgDl   = if (glucoseUnit == "mmol/L") avgSugarMmol * 18.0 else avgSugarMmol
+                    val estimatedHbA1c = (avgSugarMgDl + 46.7) / 28.7
+                    val avgDisplay     = if (glucoseUnit == "mmol/L")
+                        "${String.format("%.1f", avgSugarMmol)} mmol/L"
+                    else "${String.format("%.0f", avgSugarMgDl)} mg/dL"
+
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column {
+                            Text("Readings used", fontSize = 12.sp, color = Color(0xFF7B1FA2))
+                            Text("$totalEntries entries across $distinctMonths months",
+                                fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Average sugar", fontSize = 12.sp, color = Color(0xFF7B1FA2))
+                            Text(avgDisplay, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        }
+                        Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                            Text("Predicted HbA1c", fontSize = 12.sp, color = Color(0xFF7B1FA2))
+                            Text("~${String.format("%.1f", estimatedHbA1c)}%",
+                                fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Card(modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))) {
+                        Column(modifier = Modifier.padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("⚠️ IMPORTANT — Please Read", fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
+                            Text(
+                                "This is a mathematical prediction based on the ADAG formula " +
+                                        "(Nathan et al., Diabetes Care 2008). It is NOT a blood test result.\n\n" +
+                                        "• Accuracy depends on number and variety of readings\n" +
+                                        "• Fasting-only readings may underestimate the result\n" +
+                                        "• Individual factors (anaemia, illness) affect accuracy\n\n" +
+                                        "ALWAYS confirm with your doctor's official HbA1c blood test " +
+                                        "every 3 months. Do NOT use this to change medication or treatment.",
+                                fontSize = 12.sp, color = Color(0xFFB71C1C), lineHeight = 18.sp)
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("Formula: ADAG Study — Nathan DM et al., Diabetes Care 2008;31(8):1473–1478",
+                        fontSize = 10.sp, color = Color.Gray,
+                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
                 }
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Average sugar", fontSize = 12.sp, color = Color(0xFF7B1FA2))
-                        Text(avgDisplay, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
-                        Text("Predicted HbA1c", fontSize = 12.sp, color = Color(0xFF7B1FA2))
-                        Text("~${String.format("%.1f", estimatedHbA1c)}%",
-                            fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color(0xFF6A1B9A))
-                    }
-                }
-                Card(modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFFFEBEE))) {
-                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text("⚠️ IMPORTANT — Please Read", fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold, color = Color(0xFFC62828))
-                        Text(
-                            "This is a mathematical prediction based on the ADAG formula " +
-                                    "(Nathan et al., Diabetes Care 2008). It is NOT a blood test result.\n\n" +
-                                    "• Accuracy depends on number and variety of your readings\n" +
-                                    "• Fasting-only readings may underestimate the result\n" +
-                                    "• Individual factors (anaemia, illness) affect accuracy\n\n" +
-                                    "ALWAYS confirm with your doctor's official HbA1c blood test every 3 months. " +
-                                    "Do NOT use this prediction to change your medication or treatment.",
-                            fontSize = 12.sp, color = Color(0xFFB71C1C), lineHeight = 18.sp)
-                    }
-                }
-                Text("Formula: ADAG Study — Nathan DM et al., Diabetes Care 2008;31(8):1473–1478",
-                    fontSize = 10.sp, color = Color.Gray,
-                    modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
         }
     }
@@ -360,10 +388,10 @@ This email was sent on behalf of the patient using 100Life App.
 
     val intent = Intent(Intent.ACTION_SEND).apply {
         type = "message/rfc822"
-        putExtra(Intent.EXTRA_EMAIL, arrayOf(doctorEmail))
+        putExtra(Intent.EXTRA_EMAIL,   arrayOf(doctorEmail))
         putExtra(Intent.EXTRA_SUBJECT, subject)
-        putExtra(Intent.EXTRA_TEXT, body)
-        putExtra(Intent.EXTRA_STREAM, csvUri)
+        putExtra(Intent.EXTRA_TEXT,    body)
+        putExtra(Intent.EXTRA_STREAM,  csvUri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
     context.startActivity(Intent.createChooser(intent, "Send report via email"))
@@ -375,12 +403,12 @@ fun MonthlySummaryScreen(
     monthCode: String, context: Context,
     onAddEntry: () -> Unit, onBack: () -> Unit, onGoToSettings: () -> Unit
 ) {
-    val dbHelper = remember { DatabaseHelper(context) }
-    val prefs = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    val dbHelper       = remember { DatabaseHelper(context) }
+    val prefs          = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
     val currentContext = LocalContext.current
-    val currentYear = java.time.LocalDate.now().year
+    val currentYear    = java.time.LocalDate.now().year
 
-    var allEntries by remember(monthCode) { mutableStateOf(dbHelper.getEntries(monthCode, currentYear)) }
+    var allEntries     by remember(monthCode) { mutableStateOf(dbHelper.getEntries(monthCode, currentYear)) }
     val allYearEntries = remember(monthCode) { dbHelper.getAllEntriesForYear(currentYear) }
 
     var showAll         by remember { mutableStateOf(false) }
@@ -401,12 +429,15 @@ fun MonthlySummaryScreen(
     val patientName = prefs.getString("patient_name", "") ?: ""
     val patientIC   = prefs.getString("patient_ic",   "") ?: ""
     val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
-    val isSettingsComplete = doctorEmail.isNotEmpty() && patientName.isNotEmpty() && patientIC.isNotEmpty()
+    val isSettingsComplete = doctorEmail.isNotEmpty() &&
+            patientName.isNotEmpty() &&
+            patientIC.isNotEmpty()
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("$monthName $currentYear Summary", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                title = { Text("$monthName $currentYear Summary",
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     TextButton(onClick = onBack) {
                         Text("← Back", fontSize = 16.sp, color = Color(0xFF2196F3))
@@ -422,15 +453,20 @@ fun MonthlySummaryScreen(
         ) {
             Card(modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Column(modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("📊 $monthName $currentYear Overview", fontSize = 18.sp,
                         fontWeight = FontWeight.Bold, color = Color(0xFF1565C0))
                     Divider(color = Color(0xFF90CAF9))
                     SummaryRow("Total entries",   "$totalEntries readings")
-                    SummaryRow("Average sugar",   if (totalEntries > 0) "${String.format("%.1f", avgSugar)} $glucoseUnit" else "No data")
-                    SummaryRow("Highest sugar",   if (highestEntry != null) "${highestEntry.sugar} $glucoseUnit  (${highestEntry.date})" else "No data")
-                    SummaryRow("Lowest sugar",    if (lowestEntry  != null) "${lowestEntry.sugar} $glucoseUnit  (${lowestEntry.date})"  else "No data")
-                    SummaryRow("Avg daily steps", if (totalEntries > 0) "$avgSteps steps" else "No data")
+                    SummaryRow("Average sugar",
+                        if (totalEntries > 0) "${String.format("%.1f", avgSugar)} $glucoseUnit" else "No data")
+                    SummaryRow("Highest sugar",
+                        if (highestEntry != null) "${highestEntry.sugar} $glucoseUnit  (${highestEntry.date})" else "No data")
+                    SummaryRow("Lowest sugar",
+                        if (lowestEntry != null) "${lowestEntry.sugar} $glucoseUnit  (${lowestEntry.date})" else "No data")
+                    SummaryRow("Avg daily steps",
+                        if (totalEntries > 0) "$avgSteps steps" else "No data")
                 }
             }
 
@@ -453,8 +489,11 @@ fun MonthlySummaryScreen(
                 colors = ButtonDefaults.buttonColors(
                     containerColor = if (isSettingsComplete) Color(0xFF1565C0) else Color(0xFF9E9E9E))
             ) {
-                Text(if (isSettingsComplete) "📧 Send Report to Doctor" else "📧 Send Report (Setup Required)",
-                    fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    if (isSettingsComplete) "📧 Send Report to Doctor"
+                    else "📧 Send Report (Setup Required)",
+                    fontSize = 18.sp, fontWeight = FontWeight.Bold
+                )
             }
 
             if (!isSettingsComplete) {
@@ -467,12 +506,14 @@ fun MonthlySummaryScreen(
 
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text(if (showAll) "All entries ($totalEntries)" else "Recent entries (last 10)",
+                    Text(
+                        if (showAll) "All entries ($totalEntries)" else "Recent entries (last 10)",
                         fontSize = 16.sp, fontWeight = FontWeight.Bold,
                         modifier = Modifier.padding(bottom = 8.dp))
                     if (totalEntries == 0) {
                         Text("No entries yet for $monthName $currentYear.\nTap '+ Add New Entry' to get started.",
-                            color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp), lineHeight = 24.sp)
+                            color = Color.Gray, modifier = Modifier.padding(vertical = 12.dp),
+                            lineHeight = 24.sp)
                     } else {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text("Date",  modifier = Modifier.weight(1.3f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -497,8 +538,10 @@ fun MonthlySummaryScreen(
                         }
                         if (totalEntries > 10) {
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text(if (showAll) "Show less ▲" else "Show all $totalEntries entries ▼",
-                                color = Color(0xFF1565C0), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                            Text(
+                                if (showAll) "Show less ▲" else "Show all $totalEntries entries ▼",
+                                color = Color(0xFF1565C0), fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier.clickable { showAll = !showAll })
                         }
                     }
@@ -517,7 +560,8 @@ fun MonthlySummaryScreen(
             title = { Text("Send Report?", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
             text = {
                 Text("You are about to send:\n\nPatient : $patientName\nIC      : $patientIC\n" +
-                        "Month   : $monthName $currentYear\nTo      : $doctorName\nEmail   : $doctorEmail\n\n" +
+                        "Month   : $monthName $currentYear\nTo      : $doctorName\n" +
+                        "Email   : $doctorEmail\n\n" +
                         "A CSV file with all $totalEntries entries will be attached.\n\n" +
                         "Your email app will open — please review before sending.",
                     fontSize = 15.sp, lineHeight = 24.sp)
@@ -572,7 +616,8 @@ fun SummaryRow(label: String, value: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(context: Context, onBack: () -> Unit) {
-    val prefs: SharedPreferences = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    val prefs: SharedPreferences =
+        context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
 
     var patientName by remember { mutableStateOf(prefs.getString("patient_name", "") ?: "") }
     var patientIC   by remember { mutableStateOf(prefs.getString("patient_ic",   "") ?: "") }
@@ -593,8 +638,10 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     val originalEmail  = remember { prefs.getString("doctor_email", "") ?: "" }
     val originalUnit   = remember { prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L" }
 
-    val hasChanges = patientName != originalName || patientIC != originalIC ||
-            doctorName != originalDrName || doctorEmail != originalEmail ||
+    val hasChanges = patientName != originalName   ||
+            patientIC   != originalIC     ||
+            doctorName  != originalDrName ||
+            doctorEmail != originalEmail  ||
             glucoseUnit != originalUnit
 
     Scaffold(
@@ -617,49 +664,60 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
             Text("👤 Patient Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3), modifier = Modifier.padding(top = 8.dp))
 
-            OutlinedTextField(value = patientName, onValueChange = { patientName = it; nameError = "" },
+            OutlinedTextField(value = patientName,
+                onValueChange = { patientName = it; nameError = "" },
                 label = { Text("Full Name", fontSize = 16.sp) },
                 placeholder = { Text("e.g. Yugen Nair Prushothaman") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, isError = nameError.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                isError = nameError.isNotEmpty(),
                 supportingText = {
                     if (nameError.isNotEmpty()) Text(nameError, color = MaterialTheme.colorScheme.error)
                     else Text("As per IC / passport", color = Color.Gray, fontSize = 12.sp)
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text))
 
-            OutlinedTextField(
-                value = patientIC,
-                onValueChange = { if (it.length <= 12 && it.all { c -> c.isDigit() }) { patientIC = it; icError = "" } },
+            OutlinedTextField(value = patientIC,
+                onValueChange = {
+                    if (it.length <= 12 && it.all { c -> c.isDigit() }) { patientIC = it; icError = "" }
+                },
                 label = { Text("IC Number", fontSize = 16.sp) },
                 placeholder = { Text("e.g. 940720106883") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, isError = icError.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                isError = icError.isNotEmpty(),
                 supportingText = {
                     if (icError.isNotEmpty()) Text(icError, color = MaterialTheme.colorScheme.error)
-                    else Text("12-digit Malaysian IC • ${patientIC.length}/12", color = Color.Gray, fontSize = 12.sp)
+                    else Text("12-digit Malaysian IC • ${patientIC.length}/12",
+                        color = Color.Gray, fontSize = 12.sp)
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
             Spacer(modifier = Modifier.height(4.dp))
-            Text("🩺 Doctor Information", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2196F3))
+            Text("🩺 Doctor Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3))
 
-            OutlinedTextField(value = doctorName, onValueChange = { doctorName = it; drNameError = "" },
+            OutlinedTextField(value = doctorName,
+                onValueChange = { doctorName = it; drNameError = "" },
                 label = { Text("Doctor's Name", fontSize = 16.sp) },
                 placeholder = { Text("e.g. Dr. Ahmad Razali") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, isError = drNameError.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                isError = drNameError.isNotEmpty(),
                 supportingText = {
                     if (drNameError.isNotEmpty()) Text(drNameError, color = MaterialTheme.colorScheme.error)
                     else Text("Include title e.g. Dr. / Prof.", color = Color.Gray, fontSize = 12.sp)
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text))
 
-            OutlinedTextField(value = doctorEmail, onValueChange = { doctorEmail = it; emailError = "" },
+            OutlinedTextField(value = doctorEmail,
+                onValueChange = { doctorEmail = it; emailError = "" },
                 label = { Text("Doctor's Email", fontSize = 16.sp) },
                 placeholder = { Text("e.g. dr.ahmad@hospital.com") },
-                modifier = Modifier.fillMaxWidth(), singleLine = true, isError = emailError.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth(), singleLine = true,
+                isError = emailError.isNotEmpty(),
                 supportingText = {
                     if (emailError.isNotEmpty()) Text(emailError, color = MaterialTheme.colorScheme.error)
                     else Text("Report will be sent to this email", color = Color.Gray, fontSize = 12.sp)
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
 
             Spacer(modifier = Modifier.height(4.dp))
-            Text("⚗️ Glucometer Reading Unit", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2196F3))
+            Text("⚗️ Glucometer Reading Unit", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3))
             GlucoseUnitSelector(selected = glucoseUnit, onSelect = { glucoseUnit = it })
             Spacer(modifier = Modifier.height(4.dp))
 
@@ -722,7 +780,8 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showDiscardDialog = false },
             title = { Text("Discard Changes?", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("You have unsaved changes. Go back without saving?", fontSize = 16.sp, lineHeight = 24.sp) },
+            text = { Text("You have unsaved changes. Go back without saving?",
+                fontSize = 16.sp, lineHeight = 24.sp) },
             confirmButton = {
                 Button(onClick = { showDiscardDialog = false; onBack() },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
@@ -738,7 +797,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
-    val today = remember { java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) }
+    val today = remember {
+        java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
+    }
     val currentYear = remember { java.time.LocalDate.now().year }
     val prefs = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
     val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
@@ -761,11 +822,12 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
     var averageSugar by remember(monthCode) { mutableStateOf(0.0) }
     var last5Entries by remember(monthCode) { mutableStateOf(listOf<Entry>()) }
 
-    val dbHelper = remember { DatabaseHelper(context) }
+    val dbHelper        = remember { DatabaseHelper(context) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
-    val monthName  = monthCodeToName(monthCode)
-    val sugarHint  = if (glucoseUnit == "mmol/L") "e.g. 6.5" else "e.g. 120"
-    val sugarRange = if (glucoseUnit == "mmol/L") "Normal fasting: 4.0 – 6.0 mmol/L" else "Normal fasting: 72 – 108 mg/dL"
+    val monthName       = monthCodeToName(monthCode)
+    val sugarHint       = if (glucoseUnit == "mmol/L") "e.g. 6.5" else "e.g. 120"
+    val sugarRange      = if (glucoseUnit == "mmol/L")
+        "Normal fasting: 4.0 – 6.0 mmol/L" else "Normal fasting: 72 – 108 mg/dL"
 
     Column(modifier = Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -776,7 +838,8 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
 
         Card(modifier = Modifier.fillMaxWidth().height(80.dp), onClick = { showDatePicker = true }) {
             Row(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween) {
                 Column {
                     Text("Date", fontSize = 13.sp, color = Color.Gray)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -788,36 +851,37 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
 
         ReadingTypeSelector(selected = readingType, onSelect = { readingType = it })
 
-        OutlinedTextField(value = sugarInput, onValueChange = { sugarInput = it; sugarError = "" },
-            label = { Text("Sugar Reading ($glucoseUnit)") }, placeholder = { Text(sugarHint) },
-            modifier = Modifier.fillMaxWidth(), singleLine = true, isError = sugarError.isNotEmpty(),
+        OutlinedTextField(value = sugarInput,
+            onValueChange = { sugarInput = it; sugarError = "" },
+            label = { Text("Sugar Reading ($glucoseUnit)") },
+            placeholder = { Text(sugarHint) },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            isError = sugarError.isNotEmpty(),
             supportingText = {
                 if (sugarError.isNotEmpty()) Text(sugarError, color = MaterialTheme.colorScheme.error)
                 else Text(sugarRange, color = Color.Gray, fontSize = 12.sp)
             }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
-        OutlinedTextField(value = stepsInput, onValueChange = { stepsInput = it; stepsError = "" },
-            label = { Text("Daily Steps") }, placeholder = { Text("e.g. 5000") },
-            modifier = Modifier.fillMaxWidth(), singleLine = true, isError = stepsError.isNotEmpty(),
+        OutlinedTextField(value = stepsInput,
+            onValueChange = { stepsInput = it; stepsError = "" },
+            label = { Text("Daily Steps") },
+            placeholder = { Text("e.g. 5000") },
+            modifier = Modifier.fillMaxWidth(), singleLine = true,
+            isError = stepsError.isNotEmpty(),
             supportingText = {
                 if (stepsError.isNotEmpty()) Text(stepsError, color = MaterialTheme.colorScheme.error)
                 else Text("Goal: 7,000–10,000 steps/day", color = Color.Gray, fontSize = 12.sp)
             }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
-        // Notes only appears for After Meal readings
         if (readingType == "After Meal") {
-            OutlinedTextField(
-                value = notesInput,
+            OutlinedTextField(value = notesInput,
                 onValueChange = { if (it.length <= 100) notesInput = it },
                 label = { Text("What did you eat?") },
                 placeholder = { Text("e.g. Nasi lemak, roti canai...") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = false,
-                maxLines = 3,
+                modifier = Modifier.fillMaxWidth(), singleLine = false, maxLines = 3,
                 supportingText = {
                     Text("${notesInput.length}/100 characters", color = Color.Gray, fontSize = 12.sp)
-                }
-            )
+                })
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -839,11 +903,15 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                     }
                     val steps = stepsInput.trim().toIntOrNull()
                     if (steps == null) { stepsError = "Please enter a whole number"; valid = false }
-                    else if (steps < 0 || steps > 100000) { stepsError = "Must be between 0 and 100,000"; valid = false }
+                    else if (steps < 0 || steps > 100000) {
+                        stepsError = "Must be between 0 and 100,000"; valid = false
+                    }
                     if (valid && sugar != null && steps != null) {
-                        dbHelper.insertEntry(monthCode, displayDate, sugar, steps, readingType, notesInput.trim(), currentYear)
+                        dbHelper.insertEntry(monthCode, displayDate, sugar, steps,
+                            readingType, notesInput.trim(), currentYear)
                         val allEntries = dbHelper.getEntries(monthCode, currentYear)
-                        averageSugar = if (allEntries.isNotEmpty()) allEntries.sumOf { it.sugar } / allEntries.size else 0.0
+                        averageSugar = if (allEntries.isNotEmpty())
+                            allEntries.sumOf { it.sugar } / allEntries.size else 0.0
                         savedDate = displayDate; savedSugar = sugarInput; savedSteps = stepsInput
                         sugarInput = ""; stepsInput = ""; notesInput = ""
                         showSaveDialog = true
@@ -875,7 +943,8 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                     }
                     Divider(modifier = Modifier.padding(vertical = 6.dp))
                     if (last5Entries.isEmpty()) {
-                        Text("No entries yet.", color = Color.Gray, modifier = Modifier.padding(vertical = 8.dp))
+                        Text("No entries yet.", color = Color.Gray,
+                            modifier = Modifier.padding(vertical = 8.dp))
                     } else {
                         last5Entries.forEach { entry ->
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -884,8 +953,10 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                                 Text(entry.readingType, modifier = Modifier.weight(1f),   fontSize = 12.sp)
                                 Text("${entry.sugar}",  modifier = Modifier.weight(0.9f), fontSize = 12.sp)
                                 Text("${entry.steps}",  modifier = Modifier.weight(0.9f), fontSize = 12.sp)
-                                IconButton(onClick = { showDeleteConfirm = entry }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Default.Delete, "Delete", tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
+                                IconButton(onClick = { showDeleteConfirm = entry },
+                                    modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Default.Delete, "Delete",
+                                        tint = Color(0xFFE53935), modifier = Modifier.size(18.dp))
                                 }
                             }
                             if (entry.notes.isNotEmpty()) {
@@ -896,7 +967,8 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                         }
                     }
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("Close ▲", color = Color(0xFF1565C0), fontSize = 15.sp, fontWeight = FontWeight.Bold,
+                    Text("Close ▲", color = Color(0xFF1565C0), fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
                         modifier = Modifier.clickable { showLast5 = false })
                 }
             }
@@ -910,14 +982,17 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             confirmButton = {
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
-                        val localDate = Instant.ofEpochMilli(millis).atZone(ZoneId.of("UTC")).toLocalDate()
+                        val localDate = Instant.ofEpochMilli(millis)
+                            .atZone(ZoneId.of("UTC")).toLocalDate()
                         displayDate = localDate.format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
                         selectedDateMillis = millis
                     }
                     showDatePicker = false
                 }) { Text("OK", fontSize = 18.sp) }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel", fontSize = 18.sp) } }
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel", fontSize = 18.sp) }
+            }
         ) { DatePicker(state = datePickerState) }
     }
 
@@ -925,7 +1000,8 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showSaveDialog = false },
             title = { Text("Saved!", fontSize = 22.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("Date: $savedDate\nType: $readingType\nSugar: $savedSugar $glucoseUnit\nSteps: $savedSteps\n\nMonthly average: ${String.format("%.1f", averageSugar)} $glucoseUnit",
+            text = { Text("Date: $savedDate\nType: $readingType\nSugar: $savedSugar $glucoseUnit\n" +
+                    "Steps: $savedSteps\n\nMonthly average: ${String.format("%.1f", averageSugar)} $glucoseUnit",
                 fontSize = 18.sp, lineHeight = 28.sp) },
             confirmButton = {
                 Button(onClick = { showSaveDialog = false },
@@ -939,7 +1015,9 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = null },
             title = { Text("Delete Entry?", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("Are you sure?\n\nDate: ${entryToDelete.date}\nType: ${entryToDelete.readingType}\nSugar: ${entryToDelete.sugar} $glucoseUnit\nSteps: ${entryToDelete.steps}",
+            text = { Text("Are you sure?\n\nDate: ${entryToDelete.date}\n" +
+                    "Type: ${entryToDelete.readingType}\n" +
+                    "Sugar: ${entryToDelete.sugar} $glucoseUnit\nSteps: ${entryToDelete.steps}",
                 fontSize = 16.sp, lineHeight = 26.sp) },
             confirmButton = {
                 Button(onClick = {
@@ -949,7 +1027,9 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                 }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE53935))
                 ) { Text("Delete", fontSize = 16.sp) }
             },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel", fontSize = 16.sp) } }
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel", fontSize = 16.sp) }
+            }
         )
     }
 }
