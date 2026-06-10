@@ -1,12 +1,15 @@
 package com.example.a100life
 
+import android.app.TimePickerDialog
 import android.content.Context
 import android.content.ContentValues
 import android.content.Intent
 import android.content.SharedPreferences
+import android.content.pm.PackageManager
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -42,6 +45,16 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Request notification permission for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+                requestPermissions(
+                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
+            }
+        }
+
         setContent {
             MaterialTheme {
                 AppNavigation(applicationContext)
@@ -234,7 +247,6 @@ fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
     Card(modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF3E5F5))) {
         Column(modifier = Modifier.padding(16.dp)) {
-
             Row(
                 modifier = Modifier.fillMaxWidth().clickable { isExpanded = !isExpanded },
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -430,8 +442,7 @@ fun MonthlySummaryScreen(
     val patientIC   = prefs.getString("patient_ic",   "") ?: ""
     val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
     val isSettingsComplete = doctorEmail.isNotEmpty() &&
-            patientName.isNotEmpty() &&
-            patientIC.isNotEmpty()
+            patientName.isNotEmpty() && patientIC.isNotEmpty()
 
     Scaffold(
         topBar = {
@@ -625,6 +636,11 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var doctorEmail by remember { mutableStateOf(prefs.getString("doctor_email", "") ?: "") }
     var glucoseUnit by remember { mutableStateOf(prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L") }
 
+    // ── Notification state variables ──
+    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean("reminder_enabled", false)) }
+    var reminderHour    by remember { mutableStateOf(prefs.getInt("reminder_hour",   9)) }
+    var reminderMinute  by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
+
     var nameError   by remember { mutableStateOf("") }
     var icError     by remember { mutableStateOf("") }
     var drNameError by remember { mutableStateOf("") }
@@ -632,17 +648,19 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var showSavedDialog   by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
-    val originalName   = remember { prefs.getString("patient_name", "") ?: "" }
-    val originalIC     = remember { prefs.getString("patient_ic",   "") ?: "" }
-    val originalDrName = remember { prefs.getString("doctor_name",  "") ?: "" }
-    val originalEmail  = remember { prefs.getString("doctor_email", "") ?: "" }
-    val originalUnit   = remember { prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L" }
+    val originalName    = remember { prefs.getString("patient_name", "") ?: "" }
+    val originalIC      = remember { prefs.getString("patient_ic",   "") ?: "" }
+    val originalDrName  = remember { prefs.getString("doctor_name",  "") ?: "" }
+    val originalEmail   = remember { prefs.getString("doctor_email", "") ?: "" }
+    val originalUnit    = remember { prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L" }
+    val originalReminder = remember { prefs.getBoolean("reminder_enabled", false) }
 
     val hasChanges = patientName != originalName   ||
             patientIC   != originalIC     ||
             doctorName  != originalDrName ||
             doctorEmail != originalEmail  ||
-            glucoseUnit != originalUnit
+            glucoseUnit != originalUnit   ||
+            reminderEnabled != originalReminder
 
     Scaffold(
         topBar = {
@@ -661,6 +679,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 .padding(paddingValues).padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ── Patient Info ──
             Text("👤 Patient Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3), modifier = Modifier.padding(top = 8.dp))
 
@@ -690,6 +709,8 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
             Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Doctor Info ──
             Text("🩺 Doctor Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3))
 
@@ -716,11 +737,87 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
 
             Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Glucose Unit ──
             Text("⚗️ Glucometer Reading Unit", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3))
             GlucoseUnitSelector(selected = glucoseUnit, onSelect = { glucoseUnit = it })
+
             Spacer(modifier = Modifier.height(4.dp))
 
+            // ── Daily Reminder ──
+            Text("🔔 Daily Reminder", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                color = Color(0xFF2196F3))
+
+            Card(modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9))) {
+                Column(modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                    Row(modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Enable daily reminder", fontSize = 16.sp,
+                                fontWeight = FontWeight.Medium)
+                            Text("Get reminded to record your reading",
+                                fontSize = 12.sp, color = Color.Gray)
+                        }
+                        Switch(
+                            checked = reminderEnabled,
+                            onCheckedChange = { enabled ->
+                                reminderEnabled = enabled
+                                if (enabled) {
+                                    ReminderReceiver.scheduleReminder(context, reminderHour, reminderMinute)
+                                } else {
+                                    ReminderReceiver.cancelReminder(context)
+                                }
+                            }
+                        )
+                    }
+
+                    if (reminderEnabled) {
+                        Row(modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Text("Reminder time", fontSize = 16.sp,
+                                    fontWeight = FontWeight.Medium)
+                                Text(
+                                    "${reminderHour.toString().padStart(2, '0')}:${reminderMinute.toString().padStart(2, '0')}",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF2196F3)
+                                )
+                            }
+                            Button(
+                                onClick = {
+                                    TimePickerDialog(
+                                        context,
+                                        { _, hour, minute ->
+                                            reminderHour   = hour
+                                            reminderMinute = minute
+                                            ReminderReceiver.scheduleReminder(context, hour, minute)
+                                        },
+                                        reminderHour,
+                                        reminderMinute,
+                                        true
+                                    ).show()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
+                            ) {
+                                Text("Change Time", fontSize = 14.sp)
+                            }
+                        }
+                        Text("⚠️ Reminder works without internet connection.",
+                            fontSize = 12.sp, color = Color(0xFF558B2F))
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // ── Info Card ──
             Card(modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
@@ -734,6 +831,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
+            // ── Save Button ──
             Button(
                 onClick = {
                     var valid = true
@@ -749,6 +847,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                             putString("doctor_name",  doctorName.trim())
                             putString("doctor_email", doctorEmail.trim())
                             putString("glucose_unit", glucoseUnit)
+                            putBoolean("reminder_enabled", reminderEnabled)
+                            putInt("reminder_hour",        reminderHour)
+                            putInt("reminder_minute",      reminderMinute)
                             apply()
                         }
                         showSavedDialog = true
@@ -756,7 +857,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
-            ) { Text("Save Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+            ) {
+                Text("Save Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            }
 
             Spacer(modifier = Modifier.height(32.dp))
         }
@@ -766,7 +869,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
         AlertDialog(
             onDismissRequest = { },
             title = { Text("✅ Settings Saved!", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
-            text = { Text("Name: $patientName\nIC: $patientIC\nDoctor: $doctorName\nEmail: $doctorEmail\nUnit: $glucoseUnit",
+            text = { Text("Name: $patientName\nIC: $patientIC\nDoctor: $doctorName\n" +
+                    "Email: $doctorEmail\nUnit: $glucoseUnit\n" +
+                    "Reminder: ${if (reminderEnabled) "ON — ${reminderHour.toString().padStart(2,'0')}:${reminderMinute.toString().padStart(2,'0')}" else "OFF"}",
                 fontSize = 16.sp, lineHeight = 26.sp) },
             confirmButton = {
                 Button(onClick = { showSavedDialog = false; onBack() },
