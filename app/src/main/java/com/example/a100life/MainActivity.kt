@@ -45,16 +45,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-
-        // Request notification permission for Android 13+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             if (checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                 != PackageManager.PERMISSION_GRANTED) {
-                requestPermissions(
-                    arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
+                requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 100)
             }
         }
-
         setContent {
             MaterialTheme {
                 AppNavigation(applicationContext)
@@ -93,8 +89,13 @@ fun AppNavigation(context: Context) {
             "data" -> DataEntryScreen(selectedMonthCode, context) {
                 currentPage = "summary"
             }
-            "settings" -> SettingsScreen(context) {
-                currentPage = "month"
+            "settings" -> SettingsScreen(
+                context = context,
+                onBack = { currentPage = "month" },
+                onPrivacyPolicy = { currentPage = "privacy" }
+            )
+            "privacy" -> PrivacyPolicyScreen {
+                currentPage = "settings"
             }
             else -> MonthSelectorScreen(
                 onMonthSelected = { monthCode ->
@@ -257,12 +258,10 @@ fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
                 Text(if (isExpanded) "▲ Hide" else "▼ View",
                     fontSize = 14.sp, color = Color(0xFF6A1B9A), fontWeight = FontWeight.Bold)
             }
-
             if (isExpanded) {
                 Spacer(modifier = Modifier.height(10.dp))
                 Divider(color = Color(0xFFCE93D8))
                 Spacer(modifier = Modifier.height(10.dp))
-
                 if (!hasEnoughData) {
                     Card(modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1))) {
@@ -285,7 +284,6 @@ fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
                     val avgDisplay     = if (glucoseUnit == "mmol/L")
                         "${String.format("%.1f", avgSugarMmol)} mmol/L"
                     else "${String.format("%.0f", avgSugarMgDl)} mg/dL"
-
                     Row(modifier = Modifier.fillMaxWidth()) {
                         Column {
                             Text("Readings used", fontSize = 12.sp, color = Color(0xFF7B1FA2))
@@ -626,7 +624,11 @@ fun SummaryRow(label: String, value: String) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(context: Context, onBack: () -> Unit) {
+fun SettingsScreen(
+    context: Context,
+    onBack: () -> Unit,
+    onPrivacyPolicy: () -> Unit
+) {
     val prefs: SharedPreferences =
         context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
 
@@ -635,8 +637,6 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
     var doctorName  by remember { mutableStateOf(prefs.getString("doctor_name",  "") ?: "") }
     var doctorEmail by remember { mutableStateOf(prefs.getString("doctor_email", "") ?: "") }
     var glucoseUnit by remember { mutableStateOf(prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L") }
-
-    // ── Notification state variables ──
     var reminderEnabled by remember { mutableStateOf(prefs.getBoolean("reminder_enabled", false)) }
     var reminderHour    by remember { mutableStateOf(prefs.getInt("reminder_hour",   9)) }
     var reminderMinute  by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
@@ -679,7 +679,6 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 .padding(paddingValues).padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── Patient Info ──
             Text("👤 Patient Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3), modifier = Modifier.padding(top = 8.dp))
 
@@ -709,8 +708,6 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 
             Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Doctor Info ──
             Text("🩺 Doctor Information", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3))
 
@@ -737,15 +734,11 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email))
 
             Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Glucose Unit ──
             Text("⚗️ Glucometer Reading Unit", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3))
             GlucoseUnitSelector(selected = glucoseUnit, onSelect = { glucoseUnit = it })
 
             Spacer(modifier = Modifier.height(4.dp))
-
-            // ── Daily Reminder ──
             Text("🔔 Daily Reminder", fontSize = 18.sp, fontWeight = FontWeight.Bold,
                 color = Color(0xFF2196F3))
 
@@ -753,13 +746,11 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9))) {
                 Column(modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)) {
-
                     Row(modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Enable daily reminder", fontSize = 16.sp,
-                                fontWeight = FontWeight.Medium)
+                            Text("Enable daily reminder", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                             Text("Get reminded to record your reading",
                                 fontSize = 12.sp, color = Color.Gray)
                         }
@@ -775,39 +766,27 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                             }
                         )
                     }
-
                     if (reminderEnabled) {
                         Row(modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically) {
                             Column {
-                                Text("Reminder time", fontSize = 16.sp,
-                                    fontWeight = FontWeight.Medium)
+                                Text("Reminder time", fontSize = 16.sp, fontWeight = FontWeight.Medium)
                                 Text(
                                     "${reminderHour.toString().padStart(2, '0')}:${reminderMinute.toString().padStart(2, '0')}",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF2196F3)
+                                    fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF2196F3)
                                 )
                             }
                             Button(
                                 onClick = {
-                                    TimePickerDialog(
-                                        context,
-                                        { _, hour, minute ->
-                                            reminderHour   = hour
-                                            reminderMinute = minute
-                                            ReminderReceiver.scheduleReminder(context, hour, minute)
-                                        },
-                                        reminderHour,
-                                        reminderMinute,
-                                        true
-                                    ).show()
+                                    TimePickerDialog(context, { _, hour, minute ->
+                                        reminderHour   = hour
+                                        reminderMinute = minute
+                                        ReminderReceiver.scheduleReminder(context, hour, minute)
+                                    }, reminderHour, reminderMinute, true).show()
                                 },
                                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2196F3))
-                            ) {
-                                Text("Change Time", fontSize = 14.sp)
-                            }
+                            ) { Text("Change Time", fontSize = 14.sp) }
                         }
                         Text("⚠️ Reminder works without internet connection.",
                             fontSize = 12.sp, color = Color(0xFF558B2F))
@@ -817,7 +796,6 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(4.dp))
 
-            // ── Info Card ──
             Card(modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
@@ -831,7 +809,6 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // ── Save Button ──
             Button(
                 onClick = {
                     var valid = true
@@ -857,8 +834,14 @@ fun SettingsScreen(context: Context, onBack: () -> Unit) {
                 },
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
+            ) { Text("Save Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+
+            // Privacy Policy button
+            TextButton(
+                onClick = onPrivacyPolicy,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Save Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Text("📄 Privacy Policy", fontSize = 16.sp, color = Color(0xFF2196F3))
             }
 
             Spacer(modifier = Modifier.height(32.dp))
