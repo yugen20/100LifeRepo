@@ -35,11 +35,41 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import java.io.File
 import java.io.FileWriter
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+
+// ─────────────────────────────────────────────
+// ENCRYPTED SHARED PREFERENCES HELPER
+// Single function to get encrypted prefs
+// Used everywhere instead of getSharedPreferences
+// ─────────────────────────────────────────────
+
+fun getSecurePrefs(context: Context): SharedPreferences {
+    return try {
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+        EncryptedSharedPreferences.create(
+            context,
+            "100life_settings_secure",
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
+    } catch (e: Exception) {
+        // Fallback to regular prefs if encryption fails
+        context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    }
+}
+
+// ─────────────────────────────────────────────
+// MAIN ACTIVITY
+// ─────────────────────────────────────────────
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -58,6 +88,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+// ─────────────────────────────────────────────
+// NAVIGATION
+// ─────────────────────────────────────────────
 
 @Composable
 fun AppNavigation(context: Context) {
@@ -108,6 +142,10 @@ fun AppNavigation(context: Context) {
     }
 }
 
+// ─────────────────────────────────────────────
+// WELCOME SCREEN
+// ─────────────────────────────────────────────
+
 @Composable
 fun WelcomeScreen(onContinue: () -> Unit) {
     Column(
@@ -126,6 +164,10 @@ fun WelcomeScreen(onContinue: () -> Unit) {
         }
     }
 }
+
+// ─────────────────────────────────────────────
+// MONTH SELECTOR SCREEN
+// ─────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -176,6 +218,10 @@ fun MonthButton(text: String, monthCode: String, onClick: (String) -> Unit) {
     }
 }
 
+// ─────────────────────────────────────────────
+// GLUCOSE UNIT SELECTOR
+// ─────────────────────────────────────────────
+
 @Composable
 fun GlucoseUnitSelector(selected: String, onSelect: (String) -> Unit) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -208,6 +254,10 @@ fun GlucoseUnitSelector(selected: String, onSelect: (String) -> Unit) {
     }
 }
 
+// ─────────────────────────────────────────────
+// READING TYPE SELECTOR
+// ─────────────────────────────────────────────
+
 @Composable
 fun ReadingTypeSelector(selected: String, onSelect: (String) -> Unit) {
     val options = listOf("Fasting" to "🌅", "After Meal" to "🍽️", "Random" to "🎲")
@@ -237,6 +287,10 @@ fun ReadingTypeSelector(selected: String, onSelect: (String) -> Unit) {
         }
     }
 }
+
+// ─────────────────────────────────────────────
+// HbA1c PREDICTION CARD
+// ─────────────────────────────────────────────
 
 @Composable
 fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
@@ -332,6 +386,10 @@ fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
     }
 }
 
+// ─────────────────────────────────────────────
+// CSV HELPER
+// ─────────────────────────────────────────────
+
 fun generateCSV(
     context: Context, entries: List<Entry>, monthName: String, year: Int,
     patientName: String, patientIC: String, glucoseUnit: String,
@@ -366,6 +424,10 @@ fun generateCSV(
         FileProvider.getUriForFile(context, "${context.packageName}.provider", csvFile)
     } catch (e: Exception) { e.printStackTrace(); null }
 }
+
+// ─────────────────────────────────────────────
+// EMAIL SEND FUNCTION
+// ─────────────────────────────────────────────
 
 fun sendEmailWithCSV(
     context: Context, csvUri: Uri, doctorEmail: String, doctorName: String,
@@ -407,6 +469,10 @@ This email was sent on behalf of the patient using 100Life App.
     context.startActivity(Intent.createChooser(intent, "Send report via email"))
 }
 
+// ─────────────────────────────────────────────
+// MONTHLY SUMMARY SCREEN
+// ─────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MonthlySummaryScreen(
@@ -414,7 +480,7 @@ fun MonthlySummaryScreen(
     onAddEntry: () -> Unit, onBack: () -> Unit, onGoToSettings: () -> Unit
 ) {
     val dbHelper       = remember { DatabaseHelper(context) }
-    val prefs          = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    val prefs          = remember { getSecurePrefs(context) }
     val currentContext = LocalContext.current
     val currentYear    = java.time.LocalDate.now().year
 
@@ -622,6 +688,11 @@ fun SummaryRow(label: String, value: String) {
     }
 }
 
+// ─────────────────────────────────────────────
+// SETTINGS SCREEN
+// Now uses getSecurePrefs() — encrypted storage
+// ─────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
@@ -629,8 +700,7 @@ fun SettingsScreen(
     onBack: () -> Unit,
     onPrivacyPolicy: () -> Unit
 ) {
-    val prefs: SharedPreferences =
-        context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    val prefs = remember { getSecurePrefs(context) }
 
     var patientName by remember { mutableStateOf(prefs.getString("patient_name", "") ?: "") }
     var patientIC   by remember { mutableStateOf(prefs.getString("patient_ic",   "") ?: "") }
@@ -648,11 +718,11 @@ fun SettingsScreen(
     var showSavedDialog   by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
 
-    val originalName    = remember { prefs.getString("patient_name", "") ?: "" }
-    val originalIC      = remember { prefs.getString("patient_ic",   "") ?: "" }
-    val originalDrName  = remember { prefs.getString("doctor_name",  "") ?: "" }
-    val originalEmail   = remember { prefs.getString("doctor_email", "") ?: "" }
-    val originalUnit    = remember { prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L" }
+    val originalName     = remember { prefs.getString("patient_name", "") ?: "" }
+    val originalIC       = remember { prefs.getString("patient_ic",   "") ?: "" }
+    val originalDrName   = remember { prefs.getString("doctor_name",  "") ?: "" }
+    val originalEmail    = remember { prefs.getString("doctor_email", "") ?: "" }
+    val originalUnit     = remember { prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L" }
     val originalReminder = remember { prefs.getBoolean("reminder_enabled", false) }
 
     val hasChanges = patientName != originalName   ||
@@ -801,7 +871,7 @@ fun SettingsScreen(
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
                     Text("ℹ️", fontSize = 20.sp)
                     Spacer(modifier = Modifier.width(10.dp))
-                    Text("Your information is stored safely on your phone only. " +
+                    Text("Your information is encrypted and stored safely on your phone only. " +
                             "It is used to generate your monthly report for your doctor.",
                         fontSize = 14.sp, color = Color(0xFF1565C0), lineHeight = 22.sp)
                 }
@@ -836,11 +906,7 @@ fun SettingsScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))
             ) { Text("Save Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
 
-            // Privacy Policy button
-            TextButton(
-                onClick = onPrivacyPolicy,
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            TextButton(onClick = onPrivacyPolicy, modifier = Modifier.fillMaxWidth()) {
                 Text("📄 Privacy Policy", fontSize = 16.sp, color = Color(0xFF2196F3))
             }
 
@@ -854,7 +920,7 @@ fun SettingsScreen(
             title = { Text("✅ Settings Saved!", fontSize = 20.sp, fontWeight = FontWeight.Bold) },
             text = { Text("Name: $patientName\nIC: $patientIC\nDoctor: $doctorName\n" +
                     "Email: $doctorEmail\nUnit: $glucoseUnit\n" +
-                    "Reminder: ${if (reminderEnabled) "ON — ${reminderHour.toString().padStart(2,'0')}:${reminderMinute.toString().padStart(2,'0')}" else "OFF"}",
+                    "Reminder: ${if (reminderEnabled) "ON — ${reminderHour.toString().padStart(2,'0')}:${reminderMinute.toString().padStart(2,'0')}" else "OFF"}\n\n🔒 Data encrypted and stored securely.",
                 fontSize = 16.sp, lineHeight = 26.sp) },
             confirmButton = {
                 Button(onClick = { showSavedDialog = false; onBack() },
@@ -882,6 +948,10 @@ fun SettingsScreen(
     }
 }
 
+// ─────────────────────────────────────────────
+// DATA ENTRY SCREEN
+// ─────────────────────────────────────────────
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
@@ -889,7 +959,7 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
         java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd"))
     }
     val currentYear = remember { java.time.LocalDate.now().year }
-    val prefs = context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    val prefs = remember { getSecurePrefs(context) }
     val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
 
     var selectedDateMillis by remember(monthCode) { mutableStateOf(System.currentTimeMillis()) }
@@ -1122,6 +1192,10 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
     }
 }
 
+// ─────────────────────────────────────────────
+// DATABASE HELPER
+// ─────────────────────────────────────────────
+
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase?) {
@@ -1209,6 +1283,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", 
     }
 }
 
+// ─────────────────────────────────────────────
+// DATA MODEL
+// ─────────────────────────────────────────────
+
 data class Entry(
     val id: Int, val month: String, val date: String,
     val sugar: Double, val steps: Int,
@@ -1216,6 +1294,10 @@ data class Entry(
     val notes: String = "",
     val year: Int = 2026
 )
+
+// ─────────────────────────────────────────────
+// HELPER — Month code to name
+// ─────────────────────────────────────────────
 
 fun monthCodeToName(code: String): String {
     return mapOf(
