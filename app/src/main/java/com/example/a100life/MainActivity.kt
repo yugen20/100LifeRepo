@@ -15,6 +15,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -136,9 +137,13 @@ fun AppNavigation(context: Context) {
         "settings" -> SettingsScreen(
             context = context,
             onBack = { currentPage = "month" },
-            onPrivacyPolicy = { currentPage = "privacy" }
+            onPrivacyPolicy = { currentPage = "privacy" },
+            onAboutDeveloper = { currentPage = "about" }
         )
         "privacy" -> PrivacyPolicyScreen {
+            currentPage = "settings"
+        }
+        "about" -> AboutDeveloperScreen {
             currentPage = "settings"
         }
         else -> MonthSelectorScreen(
@@ -863,7 +868,7 @@ fun SummaryRow(label: String, value: String) {
 // ─────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> Unit) {
+fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> Unit, onAboutDeveloper: () -> Unit) {
     val prefs = remember { getSecurePrefs(context) }
     var patientName by remember { mutableStateOf(prefs.getString("patient_name", "") ?: "") }
     var patientIC by remember { mutableStateOf(prefs.getString("patient_ic", "") ?: "") }
@@ -910,7 +915,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
                 .padding(paddingValues)
-                .padding(horizontal = 20.dp, vertical = 16.dp),
+                .padding(horizontal = 16.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             Text("👤 Patient Information", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = AppColors.NavyMid)
@@ -1083,6 +1088,9 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
             TextButton(onClick = onPrivacyPolicy, modifier = Modifier.fillMaxWidth()) {
                 Text("📄 Privacy Policy", fontSize = 16.sp, color = AppColors.NavyMid)
             }
+            TextButton(onClick = onAboutDeveloper, modifier = Modifier.fillMaxWidth()) {
+                Text("💙 About the Developer", fontSize = 16.sp, color = AppColors.NavyMid)
+            }
             Spacer(modifier = Modifier.height(32.dp))
         }
     }
@@ -1160,19 +1168,43 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
     val sugarHint = if (glucoseUnit == "mmol/L") "e.g. 6.5" else "e.g. 120"
     val sugarRange = if (glucoseUnit == "mmol/L") "Normal fasting: 4.0 – 6.0 mmol/L" else "Normal fasting: 72 – 108 mg/dL"
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Scaffold(
+        containerColor = AppColors.PageBackground,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Column {
+                        Text(
+                            "Add Entry",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = AppColors.TextOnDark
+                        )
+                        Text(
+                            "$monthName $currentYear",
+                            fontSize = 12.sp,
+                            color = AppColors.TextOnDark.copy(alpha = 0.8f)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.NavyMid),
+                navigationIcon = {
+                    TextButton(onClick = onBack) {
+                        Text("← Back", fontSize = 15.sp, color = AppColors.TextOnDark)
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 20.dp)
+                .background(AppColors.PageBackground)
+                .padding(paddingValues)
+                .padding(horizontal = 16.dp, vertical = 16.dp)
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Spacer(modifier = Modifier.height(56.dp))
-            Text("Add Entry", fontSize = 26.sp, fontWeight = FontWeight.Bold, color = AppColors.TextDark)
-            Text("$monthName $currentYear", fontSize = 16.sp, color = AppColors.TextGray)
-            Spacer(modifier = Modifier.height(4.dp))
-
             Card(
                 modifier = Modifier.fillMaxWidth().height(80.dp),
                 onClick = { showDatePicker = true },
@@ -1238,43 +1270,34 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF757575)),
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("Back", fontSize = 18.sp) }
-
-                Button(
-                    onClick = {
-                        var valid = true
-                        val sugar = sugarInput.trim().toDoubleOrNull()
-                        if (sugar == null) { sugarError = "Please enter a number"; valid = false }
-                        else if (glucoseUnit == "mmol/L" && (sugar < 1.0 || sugar > 33.0)) {
-                            sugarError = "Must be between 1.0 and 33.0 mmol/L"; valid = false
-                        } else if (glucoseUnit == "mg/dL" && (sugar < 18.0 || sugar > 600.0)) {
-                            sugarError = "Must be between 18 and 600 mg/dL"; valid = false
-                        }
-                        val steps = stepsInput.trim().toIntOrNull()
-                        if (steps == null) { stepsError = "Please enter a whole number"; valid = false }
-                        else if (steps < 0 || steps > 100000) {
-                            stepsError = "Must be between 0 and 100,000"; valid = false
-                        }
-                        if (valid && sugar != null && steps != null) {
-                            dbHelper.insertEntry(monthCode, displayDate, sugar, steps, readingType, notesInput.trim(), currentYear)
-                            val allEntries = dbHelper.getEntries(monthCode, currentYear)
-                            averageSugar = if (allEntries.isNotEmpty()) allEntries.sumOf { it.sugar } / allEntries.size else 0.0
-                            savedDate = displayDate; savedSugar = sugarInput; savedSteps = stepsInput
-                            sugarInput = ""; stepsInput = ""; notesInput = ""
-                            showSaveDialog = true
-                        }
-                    },
-                    modifier = Modifier.weight(1f).height(56.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Success),
-                    shape = RoundedCornerShape(10.dp)
-                ) { Text("Save", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
-            }
+            Button(
+                onClick = {
+                    var valid = true
+                    val sugar = sugarInput.trim().toDoubleOrNull()
+                    if (sugar == null) { sugarError = "Please enter a number"; valid = false }
+                    else if (glucoseUnit == "mmol/L" && (sugar < 1.0 || sugar > 33.0)) {
+                        sugarError = "Must be between 1.0 and 33.0 mmol/L"; valid = false
+                    } else if (glucoseUnit == "mg/dL" && (sugar < 18.0 || sugar > 600.0)) {
+                        sugarError = "Must be between 18 and 600 mg/dL"; valid = false
+                    }
+                    val steps = stepsInput.trim().toIntOrNull()
+                    if (steps == null) { stepsError = "Please enter a whole number"; valid = false }
+                    else if (steps < 0 || steps > 100000) {
+                        stepsError = "Must be between 0 and 100,000"; valid = false
+                    }
+                    if (valid && sugar != null && steps != null) {
+                        dbHelper.insertEntry(monthCode, displayDate, sugar, steps, readingType, notesInput.trim(), currentYear)
+                        val allEntries = dbHelper.getEntries(monthCode, currentYear)
+                        averageSugar = if (allEntries.isNotEmpty()) allEntries.sumOf { it.sugar } / allEntries.size else 0.0
+                        savedDate = displayDate; savedSugar = sugarInput; savedSteps = stepsInput
+                        sugarInput = ""; stepsInput = ""; notesInput = ""
+                        showSaveDialog = true
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Success),
+                shape = RoundedCornerShape(10.dp)
+            ) { Text("Save Entry", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
 
             Spacer(modifier = Modifier.height(4.dp))
             Text(
@@ -1294,7 +1317,7 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                     colors = CardDefaults.cardColors(containerColor = AppColors.CardWhite),
                     shape = RoundedCornerShape(12.dp)
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth()) {
                             Text("Date", modifier = Modifier.weight(1.2f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Text("Type", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -1302,13 +1325,13 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                             Text("Steps", modifier = Modifier.weight(0.9f), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                             Text("", modifier = Modifier.width(36.dp))
                         }
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         if (last5Entries.isEmpty()) {
                             Text("No entries yet.", color = AppColors.TextGray, modifier = Modifier.padding(vertical = 8.dp))
                         } else {
                             last5Entries.forEach { entry ->
                                 Row(
-                                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(entry.date, modifier = Modifier.weight(1.2f), fontSize = 12.sp)
