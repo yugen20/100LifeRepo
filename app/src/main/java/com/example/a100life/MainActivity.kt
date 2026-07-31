@@ -1354,10 +1354,10 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
                                     modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(entry.date, modifier = Modifier.weight(1.2f), fontSize = 12.sp)
-                                    Text(entry.readingType, modifier = Modifier.weight(1f), fontSize = 12.sp)
-                                    Text("${entry.sugar}", modifier = Modifier.weight(0.9f), fontSize = 12.sp)
-                                    Text("${entry.steps}", modifier = Modifier.weight(0.9f), fontSize = 12.sp)
+                                    Text(entry.date, modifier = Modifier.weight(1.2f), fontSize = 15.sp)
+                                    Text(entry.readingType, modifier = Modifier.weight(1f), fontSize = 15.sp)
+                                    Text("${entry.sugar}", modifier = Modifier.weight(0.9f), fontSize = 15.sp)
+                                    Text("${entry.steps}", modifier = Modifier.weight(0.9f), fontSize = 15.sp)
                                     IconButton(onClick = { showDeleteConfirm = entry }, modifier = Modifier.size(36.dp)) {
                                         Icon(Icons.Default.Delete, "Delete", tint = AppColors.Error, modifier = Modifier.size(18.dp))
                                     }
