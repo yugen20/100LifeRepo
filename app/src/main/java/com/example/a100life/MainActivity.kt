@@ -1,7 +1,9 @@
 package com.example.a100life
 
+import android.app.Activity
 import android.app.TimePickerDialog
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.ContentValues
 import android.content.Intent
 import android.content.SharedPreferences
@@ -63,6 +65,20 @@ object AppColors {
     val TextOnDark = Color(0xFFFFFFFF)     // text on navy bg
     val Divider = Color(0xFF90CAF9)        // light blue dividers
     val CardBlue = Color(0xFFE3F2FD)       // light blue card bg
+}
+
+// ─────────────────────────────────────────────
+// CONTEXT HELPER — unwrap to the hosting Activity
+// TimePickerDialog (and any Dialog) needs a real
+// Activity window token; applicationContext has none.
+// ─────────────────────────────────────────────
+fun Context.findActivity(): Activity {
+    var ctx = this
+    while (ctx is ContextWrapper) {
+        if (ctx is Activity) return ctx
+        ctx = ctx.baseContext
+    }
+    throw IllegalStateException("No Activity found in context chain — cannot show dialog")
 }
 
 // ─────────────────────────────────────────────
@@ -869,6 +885,10 @@ fun SummaryRow(label: String, value: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> Unit, onAboutDeveloper: () -> Unit) {
+    // The Activity that hosts this Compose tree — needed for any Dialog.
+    // The `context` param is applicationContext (no window token), so we
+    // resolve the real Activity from LocalContext for the time picker.
+    val activity = LocalContext.current.findActivity()
     val prefs = remember { getSecurePrefs(context) }
     var patientName by remember { mutableStateOf(prefs.getString("patient_name", "") ?: "") }
     var patientIC by remember { mutableStateOf(prefs.getString("patient_ic", "") ?: "") }
@@ -1027,7 +1047,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
                             }
                             Button(
                                 onClick = {
-                                    TimePickerDialog(context, { _, hour, minute ->
+                                    TimePickerDialog(activity, { _, hour, minute ->
                                         reminderHour = hour
                                         reminderMinute = minute
                                         ReminderReceiver.scheduleReminder(context, hour, minute)

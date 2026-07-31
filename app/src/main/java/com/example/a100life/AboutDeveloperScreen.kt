@@ -123,8 +123,9 @@ fun AboutDeveloperScreen(onBack: () -> Unit) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         "100Life is completely free — especially for elderly users who shouldn't have to pay " +
-                                "a subscription just to take care of their health. There's no cloud storage, no monthly " +
-                                "fee, no ads. Your data stays on your phone, where it belongs.",
+                                "a subscription just to take care of their health. There's no cloud storage, NO AI HYPE!, no monthly " +
+                                "fee, no ads. Your data stays on your phone, where it belongs. keep track and stay healthy. " +
+                                "I will keep improving the feature as much as i can",
                         fontSize = 15.sp, lineHeight = 24.sp, color = AppColors.TextDark
                     )
                 }
@@ -144,7 +145,7 @@ fun AboutDeveloperScreen(onBack: () -> Unit) {
             Spacer(modifier = Modifier.height(16.dp))
 
             Text(
-                "— Yugen Nair",
+                "— Call me Y.P",
                 fontSize = 16.sp,
                 fontWeight = FontWeight.Bold,
                 color = AppColors.NavyMid
