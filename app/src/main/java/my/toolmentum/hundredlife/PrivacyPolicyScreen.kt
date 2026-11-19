@@ -1,4 +1,4 @@
-package com.example.a100life
+package my.toolmentum.hundredlife
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -35,7 +35,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             Text(
-                "Last updated: June 2026",
+                "Last updated: November 2026",
                 fontSize = 13.sp,
                 color = Color.Gray
             )
@@ -43,7 +43,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
             PolicySection(
                 emoji = "📱",
                 title = "Data Storage",
-                body = "All your health data — including sugar readings, steps, dates and notes — is stored locally on your phone only. We do not upload your data to any server or cloud service."
+                body = "Sugar readings, step counts, dates and notes are stored in an encrypted database on this phone (SQLCipher). Your name, IC number, doctor's details, glucose unit and reminder settings are stored separately and encrypted with a key that stays in the Android Keystore. 100Life does not upload this data to any server or cloud service."
             )
 
             PolicySection(
@@ -67,7 +67,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
             PolicySection(
                 emoji = "🔒",
                 title = "Your Data, Your Control",
-                body = "You can delete any entry at any time from within the app. Uninstalling the app permanently removes all stored data from your device. We have no copy of your data."
+                body = "You can delete any entry at any time from within the app. Uninstalling the app removes the encrypted database and settings from this phone. Android cloud backup and device-to-device transfer are turned off, so the system does not copy this data to Google or to another phone. We have no copy of your data."
             )
 
             PolicySection(
@@ -88,7 +88,7 @@ fun PrivacyPolicyScreen(onBack: () -> Unit) {
                 body = "If you have any questions about this privacy policy, please contact us through the Google Play Store listing for 100Life."
             )
 
-            Divider()
+            HorizontalDivider()
 
             Text(
                 "100Life is a free app built to help people track their health and communicate better with their doctors. Your privacy is our priority.",

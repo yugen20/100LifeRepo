@@ -14,33 +14,38 @@ if (hasKeystore) {
 }
 
 android {
-    namespace = "com.example.a100life"
+    namespace = "my.toolmentum.hundredlife"
     compileSdk {
         version = release(36) {
             minorApiLevel = 1
         }
     }
     defaultConfig {
-        applicationId = "com.example.a100life"
+        applicationId = "my.toolmentum.hundredlife"
         minSdk = 24
         targetSdk = 36
         versionCode = 1
-        versionName = "1.0"
+        versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
         if (hasKeystore) {
             create("release") {
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
+                fun requireProp(name: String): String =
+                    keystoreProperties.getProperty(name)
+                        ?: error("keystore.properties is missing '$name'")
+                // Paths are absolute, or relative to the project root (where keystore.properties lives).
+                storeFile = rootProject.file(requireProp("storeFile"))
+                storePassword = requireProp("storePassword")
+                keyAlias = requireProp("keyAlias")
+                keyPassword = requireProp("keyPassword")
             }
         }
     }
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             if (hasKeystore) {
                 signingConfig = signingConfigs.getByName("release")
             }
@@ -75,5 +80,6 @@ dependencies {
     androidTestImplementation(libs.androidx.junit)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
     debugImplementation(libs.androidx.compose.ui.tooling)
-    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    implementation("net.zetetic:sqlcipher-android:4.20.0")
+    implementation("androidx.sqlite:sqlite:2.7.0")
 }
