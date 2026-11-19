@@ -1,4 +1,4 @@
-package com.example.a100life.ui.theme
+package my.toolmentum.hundredlife.ui.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

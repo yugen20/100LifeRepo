@@ -1,4 +1,4 @@
-package com.example.a100life.ui.theme
+package my.toolmentum.hundredlife.ui.theme
 
 import android.app.Activity
 import android.os.Build

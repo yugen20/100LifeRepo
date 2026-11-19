@@ -1,15 +1,12 @@
-package com.example.a100life
+package my.toolmentum.hundredlife
 
 import android.app.Activity
 import android.app.TimePickerDialog
 import android.content.Context
 import android.content.ContextWrapper
-import android.content.ContentValues
 import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteOpenHelper
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -39,8 +36,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import java.io.File
 import java.io.FileWriter
 import java.time.Instant
@@ -81,24 +76,78 @@ fun Context.findActivity(): Activity {
     throw IllegalStateException("No Activity found in context chain — cannot show dialog")
 }
 
-// ─────────────────────────────────────────────
-// ENCRYPTED SHARED PREFERENCES HELPER
-// AES-256-GCM bank-grade encryption
-// ─────────────────────────────────────────────
-fun getSecurePrefs(context: Context): SharedPreferences {
-    return try {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "100life_settings_secure",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+@Composable
+fun SecurePrefsOrError(context: Context, onBack: () -> Unit): SharedPreferences? {
+    val opened = remember(context) { runCatching { getSecurePrefs(context) } }
+    val prefs = opened.getOrNull()
+    if (prefs == null) {
+        SecureStorageErrorScreen(
+            detail = opened.exceptionOrNull()?.message
+                ?: "Encrypted settings could not be opened.",
+            onBack = onBack
         )
-    } catch (e: Exception) {
-        context.getSharedPreferences("100life_settings", Context.MODE_PRIVATE)
+    }
+    return prefs
+}
+
+@Composable
+fun HealthDatabaseOrError(context: Context, onBack: () -> Unit): DatabaseHelper? {
+    val opened = remember(context) { runCatching { DatabaseHelper(context) } }
+    val helper = opened.getOrNull()
+    if (helper != null) {
+        DisposableEffect(helper) {
+            onDispose { helper.close() }
+        }
+    } else {
+        SecureStorageErrorScreen(
+            detail = opened.exceptionOrNull()?.message
+                ?: "The encrypted health database could not be opened.",
+            onBack = onBack
+        )
+    }
+    return helper
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SecureStorageErrorScreen(detail: String, onBack: () -> Unit) {
+    Scaffold(
+        containerColor = AppColors.PageBackground,
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        "Storage unavailable",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = AppColors.TextOnDark
+                    )
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = AppColors.NavyMid),
+                navigationIcon = {
+                    TextButton(onClick = onBack) {
+                        Text("← Back", fontSize = 15.sp, color = AppColors.TextOnDark)
+                    }
+                }
+            )
+        }
+    ) { paddingValues ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues)
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                "100Life could not open its encrypted storage, so it stopped. " +
+                    "Nothing was written to an unprotected file.",
+                fontSize = 16.sp,
+                color = AppColors.TextDark,
+                lineHeight = 24.sp
+            )
+            Text(detail, fontSize = 14.sp, color = AppColors.TextGray, lineHeight = 22.sp)
+        }
     }
 }
 
@@ -435,9 +484,8 @@ fun HbA1cPredictionCard(allYearEntries: List<Entry>, glucoseUnit: String) {
                     }
                 } else {
                     val avgSugarMmol = allYearEntries.sumOf { it.sugar } / totalEntries
-                    val avgSugarMgDl =
-                        if (glucoseUnit == "mmol/L") avgSugarMmol * 18.0 else avgSugarMmol
-                    val estimatedHbA1c = (avgSugarMgDl + 46.7) / 28.7
+                    val avgSugarMgDl = GlucoseUnits.toMgDl(avgSugarMmol, glucoseUnit)
+                    val estimatedHbA1c = GlucoseUnits.estimateHbA1cPercent(avgSugarMgDl)
                     val avgDisplay = if (glucoseUnit == "mmol/L")
                         "${String.format("%.1f", avgSugarMmol)} mmol/L"
                     else "${String.format("%.0f", avgSugarMgDl)} mg/dL"
@@ -522,10 +570,11 @@ fun generateCSV(
     avgSugar: Double, highestEntry: Entry?, lowestEntry: Entry?, avgSteps: Int
 ): Uri? {
     return try {
-        val safePatientName = patientName.replace(" ", "_")
-        val fileName = "100Life_${safePatientName}_${patientIC}_${monthName}${year}.csv"
+        val fileName = exportReportFileName(monthName, year)
         val csvDir = File(context.cacheDir, "csv_exports")
         if (!csvDir.exists()) csvDir.mkdirs()
+        // Drop older attachments so a previous file name cannot keep an IC in cache.
+        csvDir.listFiles()?.forEach { older -> if (older.isFile) older.delete() }
         val csvFile = File(csvDir, fileName)
         val writer = FileWriter(csvFile)
         writer.append("100Life Health Report\n")
@@ -563,7 +612,7 @@ fun sendEmailWithCSV(
     glucoseUnit: String, totalEntries: Int, avgSugar: Double,
     highestEntry: Entry?, lowestEntry: Entry?, avgSteps: Int
 ) {
-    val subject = "[100Life] $patientName | IC: $patientIC | Sugar Report - $monthName $year"
+    val subject = exportReportSubject(patientName, monthName, year)
     val body = """Dear $doctorName,
 
 Please find attached the monthly sugar and steps report for your patient:
@@ -603,13 +652,27 @@ fun MonthlySummaryScreen(
     monthCode: String, context: Context,
     onAddEntry: () -> Unit, onBack: () -> Unit, onGoToSettings: () -> Unit
 ) {
-    val dbHelper = remember { DatabaseHelper(context) }
-    val prefs = remember { getSecurePrefs(context) }
+    val dbHelper = HealthDatabaseOrError(context, onBack) ?: return
+    val prefs = SecurePrefsOrError(context, onBack) ?: return
     val currentContext = LocalContext.current
     val currentYear = java.time.LocalDate.now().year
 
-    var allEntries by remember(monthCode) { mutableStateOf(dbHelper.getEntries(monthCode, currentYear)) }
-    val allYearEntries = remember(monthCode) { dbHelper.getAllEntriesForYear(currentYear) }
+    val loaded = remember(monthCode, dbHelper) {
+        runCatching {
+            dbHelper.getEntries(monthCode, currentYear) to dbHelper.getAllEntriesForYear(currentYear)
+        }
+    }
+    val loadedEntries = loaded.getOrNull()
+    if (loadedEntries == null) {
+        SecureStorageErrorScreen(
+            detail = loaded.exceptionOrNull()?.message
+                ?: "Couldn't read the encrypted health database.",
+            onBack = onBack
+        )
+        return
+    }
+    var allEntries by remember(monthCode) { mutableStateOf(loadedEntries.first) }
+    val allYearEntries = loadedEntries.second
     var showAll by remember { mutableStateOf(false) }
     var showSendConfirm by remember { mutableStateOf(false) }
     var showEmailError by remember { mutableStateOf(false) }
@@ -623,11 +686,11 @@ fun MonthlySummaryScreen(
     val avgSteps = if (totalEntries > 0) allEntries.sumOf { it.steps } / totalEntries else 0
     val displayedEntries = if (showAll) allEntries else allEntries.take(10)
 
-    val doctorName = prefs.getString("doctor_name", "") ?: ""
-    val doctorEmail = prefs.getString("doctor_email", "") ?: ""
-    val patientName = prefs.getString("patient_name", "") ?: ""
-    val patientIC = prefs.getString("patient_ic", "") ?: ""
-    val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
+    val doctorName = prefs.getString(SettingKeys.DOCTOR_NAME, "") ?: ""
+    val doctorEmail = prefs.getString(SettingKeys.DOCTOR_EMAIL, "") ?: ""
+    val patientName = prefs.getString(SettingKeys.PATIENT_NAME, "") ?: ""
+    val patientIC = prefs.getString(SettingKeys.PATIENT_IC, "") ?: ""
+    val glucoseUnit = prefs.getString(SettingKeys.GLUCOSE_UNIT, GlucoseUnits.MMOL_L) ?: GlucoseUnits.MMOL_L
     val isSettingsComplete = doctorEmail.isNotEmpty() && patientName.isNotEmpty() && patientIC.isNotEmpty()
 
     Scaffold(
@@ -880,7 +943,7 @@ fun SummaryRow(label: String, value: String) {
 
 // ─────────────────────────────────────────────
 // SETTINGS SCREEN
-// Uses getSecurePrefs() — AES-256-GCM encrypted
+// Values are encrypted with the Android Keystore. There is no plaintext copy.
 // ─────────────────────────────────────────────
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -888,28 +951,29 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
     // The Activity that hosts this Compose tree — needed for any Dialog.
     // The `context` param is applicationContext (no window token), so we
     // resolve the real Activity from LocalContext for the time picker.
+    val prefs = SecurePrefsOrError(context, onBack) ?: return
     val activity = LocalContext.current.findActivity()
-    val prefs = remember { getSecurePrefs(context) }
-    var patientName by remember { mutableStateOf(prefs.getString("patient_name", "") ?: "") }
-    var patientIC by remember { mutableStateOf(prefs.getString("patient_ic", "") ?: "") }
-    var doctorName by remember { mutableStateOf(prefs.getString("doctor_name", "") ?: "") }
-    var doctorEmail by remember { mutableStateOf(prefs.getString("doctor_email", "") ?: "") }
-    var glucoseUnit by remember { mutableStateOf(prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L") }
-    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean("reminder_enabled", false)) }
-    var reminderHour by remember { mutableStateOf(prefs.getInt("reminder_hour", 9)) }
-    var reminderMinute by remember { mutableStateOf(prefs.getInt("reminder_minute", 0)) }
+    var patientName by remember { mutableStateOf(prefs.getString(SettingKeys.PATIENT_NAME, "") ?: "") }
+    var patientIC by remember { mutableStateOf(prefs.getString(SettingKeys.PATIENT_IC, "") ?: "") }
+    var doctorName by remember { mutableStateOf(prefs.getString(SettingKeys.DOCTOR_NAME, "") ?: "") }
+    var doctorEmail by remember { mutableStateOf(prefs.getString(SettingKeys.DOCTOR_EMAIL, "") ?: "") }
+    var glucoseUnit by remember { mutableStateOf(prefs.getString(SettingKeys.GLUCOSE_UNIT, GlucoseUnits.MMOL_L) ?: GlucoseUnits.MMOL_L) }
+    var reminderEnabled by remember { mutableStateOf(prefs.getBoolean(SettingKeys.REMINDER_ENABLED, false)) }
+    var reminderHour by remember { mutableStateOf(prefs.getInt(SettingKeys.REMINDER_HOUR, 9)) }
+    var reminderMinute by remember { mutableStateOf(prefs.getInt(SettingKeys.REMINDER_MINUTE, 0)) }
     var nameError by remember { mutableStateOf("") }
     var icError by remember { mutableStateOf("") }
     var drNameError by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf("") }
     var showSavedDialog by remember { mutableStateOf(false) }
     var showDiscardDialog by remember { mutableStateOf(false) }
-    val originalName = remember { prefs.getString("patient_name", "") ?: "" }
-    val originalIC = remember { prefs.getString("patient_ic", "") ?: "" }
-    val originalDrName = remember { prefs.getString("doctor_name", "") ?: "" }
-    val originalEmail = remember { prefs.getString("doctor_email", "") ?: "" }
-    val originalUnit = remember { prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L" }
-    val originalReminder = remember { prefs.getBoolean("reminder_enabled", false) }
+    var storageError by remember { mutableStateOf("") }
+    val originalName = remember { prefs.getString(SettingKeys.PATIENT_NAME, "") ?: "" }
+    val originalIC = remember { prefs.getString(SettingKeys.PATIENT_IC, "") ?: "" }
+    val originalDrName = remember { prefs.getString(SettingKeys.DOCTOR_NAME, "") ?: "" }
+    val originalEmail = remember { prefs.getString(SettingKeys.DOCTOR_EMAIL, "") ?: "" }
+    val originalUnit = remember { prefs.getString(SettingKeys.GLUCOSE_UNIT, GlucoseUnits.MMOL_L) ?: GlucoseUnits.MMOL_L }
+    val originalReminder = remember { prefs.getBoolean(SettingKeys.REMINDER_ENABLED, false) }
     val hasChanges = patientName != originalName || patientIC != originalIC ||
             doctorName != originalDrName || doctorEmail != originalEmail ||
             glucoseUnit != originalUnit || reminderEnabled != originalReminder
@@ -1070,8 +1134,10 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
                     Text("ℹ️", fontSize = 20.sp)
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        "Your information is encrypted and stored safely on your phone only. " +
-                                "It is used to generate your monthly report for your doctor.",
+                        "Your name, IC number and doctor details are encrypted with the Android Keystore. " +
+                                "Readings and steps are stored in an encrypted database on this phone only. " +
+                                "None of this is included in Android cloud backup or device transfer. " +
+                                "It is used when you choose to generate a report for your doctor.",
                         fontSize = 14.sp, color = AppColors.NavyMid, lineHeight = 22.sp
                     )
                 }
@@ -1086,24 +1152,50 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
                     val emailRegex = Regex("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$")
                     if (!emailRegex.matches(doctorEmail.trim())) { emailError = "Please enter a valid email"; valid = false }
                     if (valid) {
-                        prefs.edit().apply {
-                            putString("patient_name", patientName.trim())
-                            putString("patient_ic", patientIC.trim())
-                            putString("doctor_name", doctorName.trim())
-                            putString("doctor_email", doctorEmail.trim())
-                            putString("glucose_unit", glucoseUnit)
-                            putBoolean("reminder_enabled", reminderEnabled)
-                            putInt("reminder_hour", reminderHour)
-                            putInt("reminder_minute", reminderMinute)
-                            apply()
+                        try {
+                            val saved = prefs.edit()
+                                .putString(SettingKeys.PATIENT_NAME, patientName.trim())
+                                .putString(SettingKeys.PATIENT_IC, patientIC.trim())
+                                .putString(SettingKeys.DOCTOR_NAME, doctorName.trim())
+                                .putString(SettingKeys.DOCTOR_EMAIL, doctorEmail.trim())
+                                .putString(SettingKeys.GLUCOSE_UNIT, glucoseUnit)
+                                .putBoolean(SettingKeys.REMINDER_ENABLED, reminderEnabled)
+                                .putInt(SettingKeys.REMINDER_HOUR, reminderHour)
+                                .putInt(SettingKeys.REMINDER_MINUTE, reminderMinute)
+                                .commit()
+                            if (!saved) {
+                                throw IllegalStateException("Encrypted settings were not saved")
+                            }
+                            if (reminderEnabled) {
+                                ReminderReceiver.scheduleReminder(context, reminderHour, reminderMinute)
+                            } else {
+                                ReminderReceiver.cancelReminder(context)
+                            }
+                            storageError = ""
+                            showSavedDialog = true
+                        } catch (e: Exception) {
+                            storageError = "Couldn't encrypt these settings, so they were not saved."
+                            val stored = prefs.getBoolean(SettingKeys.REMINDER_ENABLED, false)
+                            if (stored) {
+                                ReminderReceiver.scheduleReminder(
+                                    context,
+                                    prefs.getInt(SettingKeys.REMINDER_HOUR, 9),
+                                    prefs.getInt(SettingKeys.REMINDER_MINUTE, 0)
+                                )
+                            } else {
+                                ReminderReceiver.cancelReminder(context)
+                            }
                         }
-                        showSavedDialog = true
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(60.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Success),
                 shape = RoundedCornerShape(10.dp)
             ) { Text("Save Settings", fontSize = 20.sp, fontWeight = FontWeight.Bold) }
+
+            if (storageError.isNotEmpty()) {
+                Text(storageError, fontSize = 14.sp, color = AppColors.Error, lineHeight = 20.sp)
+            }
 
             TextButton(onClick = onPrivacyPolicy, modifier = Modifier.fillMaxWidth()) {
                 Text("📄 Privacy Policy", fontSize = 16.sp, color = AppColors.NavyMid)
@@ -1124,7 +1216,7 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
                     "Name: $patientName\nIC: $patientIC\nDoctor: $doctorName\n" +
                             "Email: $doctorEmail\nUnit: $glucoseUnit\n" +
                             "Reminder: ${if (reminderEnabled) "ON — ${reminderHour.toString().padStart(2, '0')}:${reminderMinute.toString().padStart(2, '0')}" else "OFF"}\n\n" +
-                            "🔒 Data encrypted and stored securely.",
+                            "Stored only on this phone and encrypted with the Android Keystore. Not included in cloud backup.",
                     fontSize = 16.sp, lineHeight = 26.sp
                 )
             },
@@ -1161,10 +1253,11 @@ fun SettingsScreen(context: Context, onBack: () -> Unit, onPrivacyPolicy: () -> 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
+    val prefs = SecurePrefsOrError(context, onBack) ?: return
+    val dbHelper = HealthDatabaseOrError(context, onBack) ?: return
     val today = remember { java.time.LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd")) }
     val currentYear = remember { java.time.LocalDate.now().year }
-    val prefs = remember { getSecurePrefs(context) }
-    val glucoseUnit = prefs.getString("glucose_unit", "mmol/L") ?: "mmol/L"
+    val glucoseUnit = prefs.getString(SettingKeys.GLUCOSE_UNIT, GlucoseUnits.MMOL_L) ?: GlucoseUnits.MMOL_L
     var selectedDateMillis by remember(monthCode) { mutableStateOf(System.currentTimeMillis()) }
     var displayDate by remember(monthCode) { mutableStateOf(today) }
     var sugarInput by remember(monthCode) { mutableStateOf("") }
@@ -1182,7 +1275,6 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
     var savedSteps by remember(monthCode) { mutableStateOf("") }
     var averageSugar by remember(monthCode) { mutableStateOf(0.0) }
     var last5Entries by remember(monthCode) { mutableStateOf(listOf<Entry>()) }
-    val dbHelper = remember { DatabaseHelper(context) }
     val datePickerState = rememberDatePickerState(initialSelectedDateMillis = selectedDateMillis)
     val monthName = monthCodeToName(monthCode)
     val sugarHint = if (glucoseUnit == "mmol/L") "e.g. 6.5" else "e.g. 120"
@@ -1293,25 +1385,23 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             Button(
                 onClick = {
                     var valid = true
-                    val sugar = sugarInput.trim().toDoubleOrNull()
-                    if (sugar == null) { sugarError = "Please enter a number"; valid = false }
-                    else if (glucoseUnit == "mmol/L" && (sugar < 1.0 || sugar > 33.0)) {
-                        sugarError = "Must be between 1.0 and 33.0 mmol/L"; valid = false
-                    } else if (glucoseUnit == "mg/dL" && (sugar < 18.0 || sugar > 600.0)) {
-                        sugarError = "Must be between 18 and 600 mg/dL"; valid = false
-                    }
-                    val steps = stepsInput.trim().toIntOrNull()
-                    if (steps == null) { stepsError = "Please enter a whole number"; valid = false }
-                    else if (steps < 0 || steps > 100000) {
-                        stepsError = "Must be between 0 and 100,000"; valid = false
-                    }
-                    if (valid && sugar != null && steps != null) {
-                        dbHelper.insertEntry(monthCode, displayDate, sugar, steps, readingType, notesInput.trim(), currentYear)
-                        val allEntries = dbHelper.getEntries(monthCode, currentYear)
-                        averageSugar = if (allEntries.isNotEmpty()) allEntries.sumOf { it.sugar } / allEntries.size else 0.0
-                        savedDate = displayDate; savedSugar = sugarInput; savedSteps = stepsInput
-                        sugarInput = ""; stepsInput = ""; notesInput = ""
-                        showSaveDialog = true
+                    val sugarProblem = GlucoseUnits.sugarError(sugarInput, glucoseUnit)
+                    val stepsProblem = GlucoseUnits.stepsError(stepsInput)
+                    if (sugarProblem != null) { sugarError = sugarProblem; valid = false }
+                    if (stepsProblem != null) { stepsError = stepsProblem; valid = false }
+                    if (valid) {
+                        val sugar = sugarInput.trim().toDouble()
+                        val steps = stepsInput.trim().toInt()
+                        try {
+                            dbHelper.insertEntry(monthCode, displayDate, sugar, steps, readingType, notesInput.trim(), currentYear)
+                            val allEntries = dbHelper.getEntries(monthCode, currentYear)
+                            averageSugar = if (allEntries.isNotEmpty()) allEntries.sumOf { it.sugar } / allEntries.size else 0.0
+                            savedDate = displayDate; savedSugar = sugarInput; savedSteps = stepsInput
+                            sugarInput = ""; stepsInput = ""; notesInput = ""
+                            showSaveDialog = true
+                        } catch (e: Exception) {
+                            sugarError = "Couldn't save to the encrypted database. The reading was not stored."
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(56.dp),
@@ -1435,8 +1525,12 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             confirmButton = {
                 Button(
                     onClick = {
-                        dbHelper.deleteEntry(entryToDelete.id)
-                        last5Entries = dbHelper.getLast5Entries(monthCode, currentYear)
+                        try {
+                            dbHelper.deleteEntry(entryToDelete.id)
+                            last5Entries = dbHelper.getLast5Entries(monthCode, currentYear)
+                        } catch (e: Exception) {
+                            sugarError = "Couldn't update the encrypted database. The entry was not changed."
+                        }
                         showDeleteConfirm = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Error)
@@ -1447,111 +1541,4 @@ fun DataEntryScreen(monthCode: String, context: Context, onBack: () -> Unit) {
             }
         )
     }
-}
-
-// ─────────────────────────────────────────────
-// DATABASE HELPER
-// ─────────────────────────────────────────────
-class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, "health.db", null, 3) {
-    override fun onCreate(db: SQLiteDatabase?) {
-        db?.execSQL(
-            """
-            CREATE TABLE entries (
-                id           INTEGER PRIMARY KEY AUTOINCREMENT,
-                month        TEXT NOT NULL,
-                date         TEXT NOT NULL,
-                sugar        REAL NOT NULL,
-                steps        INTEGER NOT NULL,
-                reading_type TEXT NOT NULL DEFAULT 'Fasting',
-                notes        TEXT NOT NULL DEFAULT '',
-                year         INTEGER NOT NULL DEFAULT 2026
-            )
-            """.trimIndent()
-        )
-    }
-
-    override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
-        db?.execSQL("DROP TABLE IF EXISTS entries")
-        onCreate(db)
-    }
-
-    fun insertEntry(month: String, date: String, sugar: Double, steps: Int, readingType: String, notes: String, year: Int) {
-        val db = writableDatabase
-        val values = ContentValues().apply {
-            put("month", month); put("date", date); put("sugar", sugar)
-            put("steps", steps); put("reading_type", readingType)
-            put("notes", notes); put("year", year)
-        }
-        db.insert("entries", null, values)
-        db.close()
-    }
-
-    fun deleteEntry(id: Int) {
-        val db = writableDatabase
-        db.delete("entries", "id = ?", arrayOf(id.toString()))
-        db.close()
-    }
-
-    fun getEntries(month: String, year: Int): List<Entry> {
-        val entries = mutableListOf<Entry>()
-        val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM entries WHERE month = ? AND year = ? ORDER BY date DESC", arrayOf(month, year.toString()))
-        while (cursor.moveToNext()) { entries.add(cursorToEntry(cursor)) }
-        cursor.close(); db.close()
-        return entries
-    }
-
-    fun getLast5Entries(month: String, year: Int): List<Entry> {
-        val entries = mutableListOf<Entry>()
-        val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM entries WHERE month = ? AND year = ? ORDER BY date DESC LIMIT 5", arrayOf(month, year.toString()))
-        while (cursor.moveToNext()) { entries.add(cursorToEntry(cursor)) }
-        cursor.close(); db.close()
-        return entries
-    }
-
-    fun getAllEntriesForYear(year: Int): List<Entry> {
-        val entries = mutableListOf<Entry>()
-        val db = readableDatabase
-        val cursor = db.rawQuery("SELECT * FROM entries WHERE year = ? ORDER BY date DESC", arrayOf(year.toString()))
-        while (cursor.moveToNext()) { entries.add(cursorToEntry(cursor)) }
-        cursor.close(); db.close()
-        return entries
-    }
-
-    private fun cursorToEntry(cursor: android.database.Cursor): Entry {
-        return Entry(
-            id          = cursor.getInt(cursor.getColumnIndexOrThrow("id")),
-            month       = cursor.getString(cursor.getColumnIndexOrThrow("month")),
-            date        = cursor.getString(cursor.getColumnIndexOrThrow("date")),
-            sugar       = cursor.getDouble(cursor.getColumnIndexOrThrow("sugar")),
-            steps       = cursor.getInt(cursor.getColumnIndexOrThrow("steps")),
-            readingType = cursor.getString(cursor.getColumnIndexOrThrow("reading_type")),
-            notes       = cursor.getString(cursor.getColumnIndexOrThrow("notes")),
-            year        = cursor.getInt(cursor.getColumnIndexOrThrow("year"))
-        )
-    }
-}
-
-// ─────────────────────────────────────────────
-// DATA MODEL
-// ─────────────────────────────────────────────
-data class Entry(
-    val id: Int, val month: String, val date: String,
-    val sugar: Double, val steps: Int,
-    val readingType: String = "Fasting",
-    val notes: String = "",
-    val year: Int = 2026
-)
-
-// ─────────────────────────────────────────────
-// HELPER — Month code to name
-// ─────────────────────────────────────────────
-fun monthCodeToName(code: String): String {
-    return mapOf(
-        "jan" to "January",  "feb" to "February", "mar" to "March",
-        "apr" to "April",    "may" to "May",       "jun" to "June",
-        "jul" to "July",     "aug" to "August",    "sep" to "September",
-        "oct" to "October",  "nov" to "November",  "dec" to "December"
-    )[code] ?: code
 }

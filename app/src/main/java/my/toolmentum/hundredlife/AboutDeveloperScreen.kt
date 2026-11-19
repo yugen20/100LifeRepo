@@ -1,4 +1,4 @@
-package com.example.a100life
+package my.toolmentum.hundredlife
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
